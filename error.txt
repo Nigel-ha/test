@@ -1,3 +1,3 @@
-
-Bad value for --query VerificationAttributes['accp-np.mail.example.com'].VerificationToken: Expecting: star, got: literal: Parse error at column 23, token "accp-np.mail.example.com" (LITERAL), for expression:
-"VerificationAttributes['accp-np.mail.example.com'].VerificationToken"
+An error occurred (InvalidChangeBatch) when calling the ChangeResourceRecordSets operation: [RRSet with DNS name _amazonses.cpp-np.mail.example.com. is not permitted in zone accp-np.mail.example.com.]
+Verification token added to Route 53.
+Please wait for the DNS changes to propagate and check the SES console to confirm verification.
