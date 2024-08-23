@@ -1,16 +1,18 @@
 #!/bin/bash
 
-# Parameters
-BASE_DOMAIN="example.com"  # Replace with your base domain
-REGION="us-east-1"         # Replace with your preferred AWS region
-ENVIRONMENT=$1             # The environment parameter (NonProd or Prod)
-
-# Validate ENVIRONMENT parameter
-if [ -z "${ENVIRONMENT}" ]; then
-  echo "Error: Environment parameter is required (NonProd or Prod)."
+# Validate number of parameters
+if [ $# -ne 2 ]; then
+  echo "Error: Two parameters required: <Environment> <BaseDomain>"
+  echo "Usage: $0 <Environment> <BaseDomain>"
   exit 1
 fi
 
+# Parameters
+ENVIRONMENT=$1        # The environment parameter (NonProd or Prod)
+BASE_DOMAIN=$2        # The base domain (e.g., example.com)
+SES_REGION="ap-southeast-2"  # SES region, e.g., ap-southeast-2
+
+# Validate ENVIRONMENT parameter
 if [ "${ENVIRONMENT}" != "NonProd" ] && [ "${ENVIRONMENT}" != "Prod" ]; then
   echo "Error: Invalid environment parameter. Please use 'NonProd' or 'Prod'."
   exit 1
@@ -48,7 +50,7 @@ add_verification_token_to_route53() {
         }]
       }
     }]
-  }' --region "${REGION}"
+  }'
 
   echo "Verification token added to Route 53."
 }
@@ -64,4 +66,27 @@ for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
     FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
   fi
   
-  echo "Checking SES domain identity
+  echo "Checking SES domain identity for ${FULL_DOMAIN}..."
+  
+  # Create SES domain identity if it doesn't exist
+  aws ses verify-domain-identity --domain "${FULL_DOMAIN}" --region "${SES_REGION}"
+  
+  # Get the verification token
+  VERIFICATION_TOKEN=$(aws ses get-identity-verification-attributes --identities "${FULL_DOMAIN}" --query "VerificationAttributes.\"${FULL_DOMAIN}\".VerificationToken" --output text --region "${SES_REGION}")
+  
+  if [ -z "${VERIFICATION_TOKEN}" ]; then
+    echo "Error: Could not retrieve verification token for ${FULL_DOMAIN}."
+    exit 1
+  fi
+  
+  echo "Verification token for ${FULL_DOMAIN}: ${VERIFICATION_TOKEN}"
+  
+  # Add verification token to Route 53
+  add_verification_token_to_route53 "${FULL_DOMAIN}" "${VERIFICATION_TOKEN}"
+  
+  echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
+  
+  echo ""
+done
+
+echo "Script completed."
