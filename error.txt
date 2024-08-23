@@ -1,3 +1,1 @@
-An error occurred (InvalidChangeBatch) when calling the ChangeResourceRecordSets operation: [RRSet with DNS name _amazonses.cpp-np.mail.example.com. is not permitted in zone accp-np.mail.example.com.]
-Verification token added to Route 53.
-Please wait for the DNS changes to propagate and check the SES console to confirm verification.
+[Tried to delete resource record set [name='_amazonses.accp-np.mail.example.com.', type='TXT'] but it was not found]
