@@ -1,5 +1,19 @@
-Verification token added to Route 53.
-Setting up Custom MAIL FROM domain (accp-np.mail.example.com) for accp-np.mail.example.com...
+Enabling DKIM for cpp-np.mail.example.com...
+DKIM tokens for cpp-np.mail.example.com: dtiyiki4rpyag3rscgewgn4x5fbbzc42        glrnnyko5tnv44rvuqoqbrfyrgmf3qwj        iirnsnos3ajksufuk6lrv4vtguoohuu2
+Adding DKIM CNAME records to Route 53 for cpp-np.mail.example.com...
 
-An error occurred (InvalidParameterValue) when calling the SetIdentityMailFromDomain operation: Provided MAIL-FROM domain <accp-np.mail.example.com> is not subdomain of the domain of the identity <accp-np.mail.example.com>.
-Custom MAIL FROM domain set for accp-np.mail.example.com.
+Error parsing parameter '--change-batch': Invalid JSON: Invalid control character at: line 7 column 52 (char 207)
+JSON received: {
+    "Comment": "Add DKIM records for cpp-np.mail.example.com",
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "dtiyiki4rpyag3rscgewgn4x5fbbzc42     glrnnyko5tnv44rvuqoqbrfyrgmf3qwj        iirnsnos3ajksufuk6lrv4vtguoohuu2._domainkey.cpp-np.mail.example.com",
+          "Type": "CNAME",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "dtiyiki4rpyag3rscgewgn4x5fbbzc42 glrnnyko5tnv44rvuqoqbrfyrgmf3qwj        iirnsnos3ajksufuk6lrv4vtguoohuu2.dkim.amazonses.com"}
+          ]
+        }
+      },
