@@ -9,7 +9,7 @@ fi
 
 # Parameters
 ENVIRONMENT=$1        # The environment parameter (NonProd or Prod)
-BASE_DOMAIN=$2        # The base domain (e.g., mail.example.com)
+BASE_DOMAIN=$2        # The base domain (e.g., cpp-np.mail.example.com)
 SES_REGION="ap-southeast-2"  # SES region, e.g., ap-southeast-2
 
 # Validate ENVIRONMENT parameter
@@ -64,12 +64,67 @@ add_verification_token_to_route53() {
   echo "Verification token added to Route 53."
 }
 
+# Function to set up custom MAIL FROM domain
+setup_custom_mail_from() {
+  local full_domain=$1
+  local mail_from_domain=$2
+
+  echo "Setting up Custom MAIL FROM domain (${mail_from_domain}) for ${full_domain}..."
+
+  aws ses set-identity-mail-from-domain \
+    --identity "${full_domain}" \
+    --mail-from-domain "${mail_from_domain}" \
+    --region "${SES_REGION}"
+
+  echo "Custom MAIL FROM domain set for ${full_domain}."
+
+  # Add MX and SPF records for the MAIL FROM domain
+  echo "Adding MX and SPF records to Route 53 for ${mail_from_domain}..."
+
+  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
+    "Comment": "Add MX and SPF records for custom MAIL FROM domain '${mail_from_domain}'",
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'${mail_from_domain}'",
+          "Type": "MX",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "10 feedback-smtp.'${SES_REGION}'.amazonses.com"}
+          ]
+        }
+      },
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'${mail_from_domain}'",
+          "Type": "TXT",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "\"v=spf1 include:amazonses.com -all\""}
+          ]
+        }
+      }
+    ]
+  }'
+
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to add MX and SPF records for ${mail_from_domain}."
+    exit 1
+  fi
+
+  echo "MX and SPF records added for ${mail_from_domain}."
+}
+
 # Loop through each subdomain
 for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   if [ "${ENVIRONMENT}" == "NonProd" ]; then
     FULL_DOMAIN="${SUBDOMAIN}-np.${BASE_DOMAIN}"
+    MAIL_FROM_DOMAIN="${FULL_DOMAIN}"
   else
     FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
+    MAIL_FROM_DOMAIN="${FULL_DOMAIN}"
   fi
   
   echo "Processing domain: ${FULL_DOMAIN}"
@@ -92,6 +147,9 @@ for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   
   # Add verification token to Route 53
   add_verification_token_to_route53 "${FULL_DOMAIN}" "${VERIFICATION_TOKEN}"
+  
+  # Set up custom MAIL FROM domain
+  setup_custom_mail_from "${FULL_DOMAIN}" "${MAIL_FROM_DOMAIN}"
   
   echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
   
