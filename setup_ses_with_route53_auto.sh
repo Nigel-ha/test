@@ -138,7 +138,7 @@ setup_dkim() {
   echo "DKIM tokens for ${full_domain}: ${DKIM_TOKENS}"
 
   # Split DKIM tokens into an array
-  IFS=' ' read -r -a DKIM_TOKEN_ARRAY <<< "$DKIM_TOKENS"
+  IFS=$'\t' read -r -a DKIM_TOKEN_ARRAY <<< "$DKIM_TOKENS"
 
   echo "Adding DKIM CNAME records to Route 53 for ${full_domain}..."
 
