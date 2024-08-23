@@ -1,0 +1,3 @@
+
+Bad value for --query VerificationAttributes['accp-np.mail.example.com'].VerificationToken: Expecting: star, got: literal: Parse error at column 23, token "accp-np.mail.example.com" (LITERAL), for expression:
+"VerificationAttributes['accp-np.mail.example.com'].VerificationToken"
