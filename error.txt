@@ -1,1 +1,5 @@
-[Tried to delete resource record set [name='_amazonses.accp-np.mail.example.com.', type='TXT'] but it was not found]
+Verification token added to Route 53.
+Setting up Custom MAIL FROM domain (accp-np.mail.example.com) for accp-np.mail.example.com...
+
+An error occurred (InvalidParameterValue) when calling the SetIdentityMailFromDomain operation: Provided MAIL-FROM domain <accp-np.mail.example.com> is not subdomain of the domain of the identity <accp-np.mail.example.com>.
+Custom MAIL FROM domain set for accp-np.mail.example.com.
