@@ -1,43 +1,52 @@
 #!/bin/bash
 
 # Validate number of parameters
-if [ $# -ne 1 ]; then
-  echo "Error: One parameter required: <BaseDomain>"
-  echo "Usage: $0 <BaseDomain>"
+if [ $# -ne 2 ]; then
+  echo "Error: Two parameters required: <Environment> <BaseDomain>"
+  echo "Usage: $0 <Environment> <BaseDomain>"
   exit 1
 fi
 
 # Parameters
-BASE_DOMAIN=$1        # The base domain (e.g., cpp-np.mail.example.com)
+ENVIRONMENT=$1        # The environment parameter (NonProd or Prod)
+BASE_DOMAIN=$2        # The base domain (e.g., cpp-np.mail.example.com)
 SES_REGION="ap-southeast-2"  # SES region, e.g., ap-southeast-2
-MAIL_FROM_SUBDOMAIN="bounce"  # Subdomain for MAIL FROM (e.g., bounce)
 
-# Function to get the HOSTED_ZONE_ID for the domain
+# Validate ENVIRONMENT parameter
+if [ "${ENVIRONMENT}" != "NonProd" ] && [ "${ENVIRONMENT}" != "Prod" ]; then
+  echo "Error: Invalid environment parameter. Please use 'NonProd' or 'Prod'."
+  exit 1
+fi
+
+# Subdomains (without "-np" extension)
+SUBDOMAINS=("cpp" "accp")
+
+# Function to get the HOSTED_ZONE_ID for each full domain
 get_hosted_zone_id() {
-  local domain=$1
+  local full_domain=$1
   
-  HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "${domain}." --query "HostedZones[0].Id" --output text)
+  HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "${full_domain}." --query "HostedZones[0].Id" --output text)
   HOSTED_ZONE_ID=$(echo $HOSTED_ZONE_ID | sed 's|/hostedzone/||')  # Remove the /hostedzone/ prefix
   if [ -z "${HOSTED_ZONE_ID}" ]; then
-    echo "Error: Could not find hosted zone for ${domain}."
+    echo "Error: Could not find hosted zone for ${full_domain}."
     exit 1
   fi
-  echo "Hosted Zone ID for ${domain}: ${HOSTED_ZONE_ID}"
+  echo "Hosted Zone ID for ${full_domain}: ${HOSTED_ZONE_ID}"
 }
 
 # Function to add the verification token to Route 53
 add_verification_token_to_route53() {
-  local domain=$1
+  local full_domain=$1
   local verification_token=$2
 
-  echo "Adding verification token for ${domain} to Route 53 in hosted zone ${HOSTED_ZONE_ID}..."
+  echo "Adding verification token for ${full_domain} to Route 53 in hosted zone ${HOSTED_ZONE_ID}..."
 
   aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
-    "Comment": "Add SES verification token for '${domain}'",
+    "Comment": "Add SES verification token for '${full_domain}'",
     "Changes": [{
       "Action": "UPSERT",
       "ResourceRecordSet": {
-        "Name": "_amazonses.'${domain}'",
+        "Name": "_amazonses.'${full_domain}'",
         "Type": "TXT",
         "TTL": 300,
         "ResourceRecords": [{
@@ -48,7 +57,7 @@ add_verification_token_to_route53() {
   }'
 
   if [ $? -ne 0 ]; then
-    echo "Error: Failed to add the verification token for ${domain}."
+    echo "Error: Failed to add the verification token for ${full_domain}."
     exit 1
   fi
 
@@ -57,17 +66,17 @@ add_verification_token_to_route53() {
 
 # Function to set up custom MAIL FROM domain
 setup_custom_mail_from() {
-  local domain=$1
+  local full_domain=$1
   local mail_from_domain=$2
 
-  echo "Setting up Custom MAIL FROM domain (${mail_from_domain}) for ${domain}..."
+  echo "Setting up Custom MAIL FROM domain (${mail_from_domain}) for ${full_domain}..."
 
   aws ses set-identity-mail-from-domain \
-    --identity "${domain}" \
+    --identity "${full_domain}" \
     --mail-from-domain "${mail_from_domain}" \
     --region "${SES_REGION}"
 
-  echo "Custom MAIL FROM domain set for ${domain}."
+  echo "Custom MAIL FROM domain set for ${full_domain}."
 
   # Add MX and SPF records for the MAIL FROM domain
   echo "Adding MX and SPF records to Route 53 for ${mail_from_domain}..."
@@ -108,29 +117,43 @@ setup_custom_mail_from() {
   echo "MX and SPF records added for ${mail_from_domain}."
 }
 
-# Get the HOSTED_ZONE_ID for the base domain
-get_hosted_zone_id "${BASE_DOMAIN}"
-
-# Verify the domain in SES
-aws ses verify-domain-identity --domain "${BASE_DOMAIN}" --region "${SES_REGION}"
-
-# Get the verification token
-VERIFICATION_TOKEN=$(aws ses get-identity-verification-attributes --identities "${BASE_DOMAIN}" --query "VerificationAttributes.\"${BASE_DOMAIN}\".VerificationToken" --output text --region "${SES_REGION}")
-
-if [ -z "${VERIFICATION_TOKEN}" ]; then
-  echo "Error: Could not retrieve verification token for ${BASE_DOMAIN}."
-  exit 1
-fi
-
-echo "Verification token for ${BASE_DOMAIN}: ${VERIFICATION_TOKEN}"
-
-# Add verification token to Route 53
-add_verification_token_to_route53 "${BASE_DOMAIN}" "${VERIFICATION_TOKEN}"
-
-# Set up custom MAIL FROM domain
-CUSTOM_MAIL_FROM_DOMAIN="${MAIL_FROM_SUBDOMAIN}.${BASE_DOMAIN}"
-setup_custom_mail_from "${BASE_DOMAIN}" "${CUSTOM_MAIL_FROM_DOMAIN}"
-
-echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
+# Loop through each subdomain
+for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
+  if [ "${ENVIRONMENT}" == "NonProd" ]; then
+    FULL_DOMAIN="${SUBDOMAIN}-np.${BASE_DOMAIN}"
+    MAIL_FROM_DOMAIN="bounce.${FULL_DOMAIN}"
+  else
+    FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
+    MAIL_FROM_DOMAIN="bounce.${FULL_DOMAIN}"
+  fi
+  
+  echo "Processing domain: ${FULL_DOMAIN}"
+  
+  # Get the HOSTED_ZONE_ID for this specific full domain
+  get_hosted_zone_id "${FULL_DOMAIN}"
+  
+  # Create SES domain identity if it doesn't exist
+  aws ses verify-domain-identity --domain "${FULL_DOMAIN}" --region "${SES_REGION}"
+  
+  # Get the verification token
+  VERIFICATION_TOKEN=$(aws ses get-identity-verification-attributes --identities "${FULL_DOMAIN}" --query "VerificationAttributes.\"${FULL_DOMAIN}\".VerificationToken" --output text --region "${SES_REGION}")
+  
+  if [ -z "${VERIFICATION_TOKEN}" ]; then
+    echo "Error: Could not retrieve verification token for ${FULL_DOMAIN}."
+    exit 1
+  fi
+  
+  echo "Verification token for ${FULL_DOMAIN}: ${VERIFICATION_TOKEN}"
+  
+  # Add verification token to Route 53
+  add_verification_token_to_route53 "${FULL_DOMAIN}" "${VERIFICATION_TOKEN}"
+  
+  # Set up custom MAIL FROM domain
+  setup_custom_mail_from "${FULL_DOMAIN}" "${MAIL_FROM_DOMAIN}"
+  
+  echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
+  
+  echo ""
+done
 
 echo "Script completed."
