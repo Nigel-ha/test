@@ -9,7 +9,7 @@ fi
 
 # Parameters
 ENVIRONMENT=$1        # The environment parameter (NonProd or Prod)
-BASE_DOMAIN=$2        # The base domain (e.g., example.com)
+BASE_DOMAIN=$2        # The base domain (e.g., mail.example.com)
 SES_REGION="ap-southeast-2"  # SES region, e.g., ap-southeast-2
 
 # Validate ENVIRONMENT parameter
@@ -27,6 +27,10 @@ get_hosted_zone_id() {
   
   HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "${base_domain}" --query "HostedZones[0].Id" --output text)
   HOSTED_ZONE_ID=$(echo $HOSTED_ZONE_ID | sed 's|/hostedzone/||')  # Remove the /hostedzone/ prefix
+  if [ -z "${HOSTED_ZONE_ID}" ]; then
+    echo "Error: Could not find hosted zone for ${base_domain}."
+    exit 1
+  fi
   echo "Hosted Zone ID for ${base_domain}: ${HOSTED_ZONE_ID}"
 }
 
@@ -35,7 +39,7 @@ add_verification_token_to_route53() {
   local full_domain=$1
   local verification_token=$2
 
-  echo "Adding verification token for ${full_domain} to Route 53..."
+  echo "Adding verification token for ${full_domain} to Route 53 in hosted zone ${HOSTED_ZONE_ID}..."
 
   aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
     "Comment": "Add SES verification token for '${full_domain}'",
@@ -52,6 +56,11 @@ add_verification_token_to_route53() {
     }]
   }'
 
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to add the verification token for ${full_domain}."
+    exit 1
+  fi
+
   echo "Verification token added to Route 53."
 }
 
@@ -66,7 +75,7 @@ for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
     FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
   fi
   
-  echo "Checking SES domain identity for ${FULL_DOMAIN}..."
+  echo "Processing domain: ${FULL_DOMAIN}"
   
   # Create SES domain identity if it doesn't exist
   aws ses verify-domain-identity --domain "${FULL_DOMAIN}" --region "${SES_REGION}"
