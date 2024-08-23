@@ -117,6 +117,70 @@ setup_custom_mail_from() {
   echo "MX and SPF records added for ${mail_from_domain}."
 }
 
+# Function to enable DKIM and add DKIM records to Route 53
+setup_dkim() {
+  local full_domain=$1
+
+  echo "Enabling DKIM for ${full_domain}..."
+
+  aws ses verify-domain-dkim --domain "${full_domain}" --region "${SES_REGION}"
+
+  DKIM_TOKENS=$(aws ses verify-domain-dkim --domain "${full_domain}" --query "DkimTokens" --output text --region "${SES_REGION}")
+
+  echo "DKIM tokens for ${full_domain}: ${DKIM_TOKENS}"
+
+  # Split DKIM tokens into an array
+  IFS=' ' read -r -a DKIM_TOKEN_ARRAY <<< "$DKIM_TOKENS"
+
+  echo "Adding DKIM CNAME records to Route 53 for ${full_domain}..."
+
+  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
+    "Comment": "Add DKIM records for '${full_domain}'",
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'${DKIM_TOKEN_ARRAY[0]}._domainkey.'${full_domain}'",
+          "Type": "CNAME",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "'${DKIM_TOKEN_ARRAY[0]}.dkim.amazonses.com'"}
+          ]
+        }
+      },
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'${DKIM_TOKEN_ARRAY[1]}._domainkey.'${full_domain}'",
+          "Type": "CNAME",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "'${DKIM_TOKEN_ARRAY[1]}.dkim.amazonses.com'"}
+          ]
+        }
+      },
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'${DKIM_TOKEN_ARRAY[2]}._domainkey.'${full_domain}'",
+          "Type": "CNAME",
+          "TTL": 300,
+          "ResourceRecords": [
+            {"Value": "'${DKIM_TOKEN_ARRAY[2]}.dkim.amazonses.com'"}
+          ]
+        }
+      }
+    ]
+  }'
+
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to add DKIM records for ${full_domain}."
+    exit 1
+  fi
+
+  echo "DKIM records added for ${full_domain}."
+}
+
 # Loop through each subdomain
 for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   if [ "${ENVIRONMENT}" == "NonProd" ]; then
@@ -150,6 +214,9 @@ for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   
   # Set up custom MAIL FROM domain
   setup_custom_mail_from "${FULL_DOMAIN}" "${MAIL_FROM_DOMAIN}"
+
+  # Enable DKIM and add DKIM records
+  setup_dkim "${FULL_DOMAIN}"
   
   echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
   
