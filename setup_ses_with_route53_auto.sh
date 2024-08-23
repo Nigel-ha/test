@@ -21,17 +21,17 @@ fi
 # Subdomains (without "-np" extension)
 SUBDOMAINS=("cpp" "accp")
 
-# Function to get the HOSTED_ZONE_ID for the BASE_DOMAIN
+# Function to get the HOSTED_ZONE_ID for each full domain
 get_hosted_zone_id() {
-  local base_domain=$1
+  local full_domain=$1
   
-  HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "${base_domain}" --query "HostedZones[0].Id" --output text)
+  HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "${full_domain}." --query "HostedZones[0].Id" --output text)
   HOSTED_ZONE_ID=$(echo $HOSTED_ZONE_ID | sed 's|/hostedzone/||')  # Remove the /hostedzone/ prefix
   if [ -z "${HOSTED_ZONE_ID}" ]; then
-    echo "Error: Could not find hosted zone for ${base_domain}."
+    echo "Error: Could not find hosted zone for ${full_domain}."
     exit 1
   fi
-  echo "Hosted Zone ID for ${base_domain}: ${HOSTED_ZONE_ID}"
+  echo "Hosted Zone ID for ${full_domain}: ${HOSTED_ZONE_ID}"
 }
 
 # Function to add the verification token to Route 53
@@ -64,9 +64,6 @@ add_verification_token_to_route53() {
   echo "Verification token added to Route 53."
 }
 
-# Get the HOSTED_ZONE_ID
-get_hosted_zone_id "${BASE_DOMAIN}"
-
 # Loop through each subdomain
 for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   if [ "${ENVIRONMENT}" == "NonProd" ]; then
@@ -76,6 +73,9 @@ for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
   fi
   
   echo "Processing domain: ${FULL_DOMAIN}"
+  
+  # Get the HOSTED_ZONE_ID for this specific full domain
+  get_hosted_zone_id "${FULL_DOMAIN}"
   
   # Create SES domain identity if it doesn't exist
   aws ses verify-domain-identity --domain "${FULL_DOMAIN}" --region "${SES_REGION}"
