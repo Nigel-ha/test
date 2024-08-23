@@ -41,20 +41,20 @@ add_verification_token_to_route53() {
 
   echo "Adding verification token for ${full_domain} to Route 53 in hosted zone ${HOSTED_ZONE_ID}..."
 
-  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
-    "Comment": "Add SES verification token for '${full_domain}'",
-    "Changes": [{
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "_amazonses.'${full_domain}'",
-        "Type": "TXT",
-        "TTL": 300,
-        "ResourceRecords": [{
-          "Value": "\"'${verification_token}'\""
+  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch "{
+    \"Comment\": \"Add SES verification token for ${full_domain}\",
+    \"Changes\": [{
+      \"Action\": \"UPSERT\",
+      \"ResourceRecordSet\": {
+        \"Name\": \"_amazonses.${full_domain}\",
+        \"Type\": \"TXT\",
+        \"TTL\": 300,
+        \"ResourceRecords\": [{
+          \"Value\": \"\\\"${verification_token}\\\"\"
         }]
       }
     }]
-  }'
+  }"
 
   if [ $? -ne 0 ]; then
     echo "Error: Failed to add the verification token for ${full_domain}."
@@ -76,38 +76,43 @@ setup_custom_mail_from() {
     --mail-from-domain "${mail_from_domain}" \
     --region "${SES_REGION}"
 
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to set the MAIL FROM domain for ${full_domain}."
+    exit 1
+  fi
+
   echo "Custom MAIL FROM domain set for ${full_domain}."
 
   # Add MX and SPF records for the MAIL FROM domain
   echo "Adding MX and SPF records to Route 53 for ${mail_from_domain}..."
 
-  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
-    "Comment": "Add MX and SPF records for custom MAIL FROM domain '${mail_from_domain}'",
-    "Changes": [
+  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch "{
+    \"Comment\": \"Add MX and SPF records for custom MAIL FROM domain ${mail_from_domain}\",
+    \"Changes\": [
       {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'${mail_from_domain}'",
-          "Type": "MX",
-          "TTL": 300,
-          "ResourceRecords": [
-            {"Value": "10 feedback-smtp.'${SES_REGION}'.amazonses.com"}
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"${mail_from_domain}\",
+          \"Type\": \"MX\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [
+            {\"Value\": \"10 feedback-smtp.${SES_REGION}.amazonses.com\"}
           ]
         }
       },
       {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'${mail_from_domain}'",
-          "Type": "TXT",
-          "TTL": 300,
-          "ResourceRecords": [
-            {"Value": "\"v=spf1 include:amazonses.com -all\""}
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"${mail_from_domain}\",
+          \"Type\": \"TXT\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [
+            {\"Value\": \"\\\"v=spf1 include:amazonses.com -all\\\"\"}
           ]
         }
       }
     ]
-  }'
+  }"
 
   if [ $? -ne 0 ]; then
     echo "Error: Failed to add MX and SPF records for ${mail_from_domain}."
@@ -123,9 +128,12 @@ setup_dkim() {
 
   echo "Enabling DKIM for ${full_domain}..."
 
-  aws ses verify-domain-dkim --domain "${full_domain}" --region "${SES_REGION}"
-
   DKIM_TOKENS=$(aws ses verify-domain-dkim --domain "${full_domain}" --query "DkimTokens" --output text --region "${SES_REGION}")
+
+  if [ -z "${DKIM_TOKENS}" ]; then
+    echo "Error: Failed to retrieve DKIM tokens for ${full_domain}."
+    exit 1
+  fi
 
   echo "DKIM tokens for ${full_domain}: ${DKIM_TOKENS}"
 
@@ -134,44 +142,44 @@ setup_dkim() {
 
   echo "Adding DKIM CNAME records to Route 53 for ${full_domain}..."
 
-  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch '{
-    "Comment": "Add DKIM records for '${full_domain}'",
-    "Changes": [
+  aws route53 change-resource-record-sets --hosted-zone-id "${HOSTED_ZONE_ID}" --change-batch "{
+    \"Comment\": \"Add DKIM records for ${full_domain}\",
+    \"Changes\": [
       {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'${DKIM_TOKEN_ARRAY[0]}._domainkey.'${full_domain}'",
-          "Type": "CNAME",
-          "TTL": 300,
-          "ResourceRecords": [
-            {"Value": "'${DKIM_TOKEN_ARRAY[0]}.dkim.amazonses.com'"}
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"${DKIM_TOKEN_ARRAY[0]}._domainkey.${full_domain}\",
+          \"Type\": \"CNAME\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [
+            {\"Value\": \"${DKIM_TOKEN_ARRAY[0]}.dkim.amazonses.com\"}
           ]
         }
       },
       {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'${DKIM_TOKEN_ARRAY[1]}._domainkey.'${full_domain}'",
-          "Type": "CNAME",
-          "TTL": 300,
-          "ResourceRecords": [
-            {"Value": "'${DKIM_TOKEN_ARRAY[1]}.dkim.amazonses.com'"}
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"${DKIM_TOKEN_ARRAY[1]}._domainkey.${full_domain}\",
+          \"Type\": \"CNAME\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [
+            {\"Value\": \"${DKIM_TOKEN_ARRAY[1]}.dkim.amazonses.com\"}
           ]
         }
       },
       {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'${DKIM_TOKEN_ARRAY[2]}._domainkey.'${full_domain}'",
-          "Type": "CNAME",
-          "TTL": 300,
-          "ResourceRecords": [
-            {"Value": "'${DKIM_TOKEN_ARRAY[2]}.dkim.amazonses.com'"}
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"${DKIM_TOKEN_ARRAY[2]}._domainkey.${full_domain}\",
+          \"Type\": \"CNAME\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [
+            {\"Value\": \"${DKIM_TOKEN_ARRAY[2]}.dkim.amazonses.com\"}
           ]
         }
       }
     ]
-  }'
+  }"
 
   if [ $? -ne 0 ]; then
     echo "Error: Failed to add DKIM records for ${full_domain}."
