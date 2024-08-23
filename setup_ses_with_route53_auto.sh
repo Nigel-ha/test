@@ -3,8 +3,20 @@
 # Parameters
 BASE_DOMAIN="example.com"  # Replace with your base domain
 REGION="us-east-1"         # Replace with your preferred AWS region
+ENVIRONMENT=$1             # The environment parameter (NonProd or Prod)
 
-# Subdomains
+# Validate ENVIRONMENT parameter
+if [ -z "${ENVIRONMENT}" ]; then
+  echo "Error: Environment parameter is required (NonProd or Prod)."
+  exit 1
+fi
+
+if [ "${ENVIRONMENT}" != "NonProd" ] && [ "${ENVIRONMENT}" != "Prod" ]; then
+  echo "Error: Invalid environment parameter. Please use 'NonProd' or 'Prod'."
+  exit 1
+fi
+
+# Subdomains (without "-np" extension)
 SUBDOMAINS=("cpp" "accp")
 
 # Function to get the HOSTED_ZONE_ID for the BASE_DOMAIN
@@ -46,33 +58,10 @@ get_hosted_zone_id "${BASE_DOMAIN}"
 
 # Loop through each subdomain
 for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
-  FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
-  
-  echo "Checking SES domain identity for ${FULL_DOMAIN}..."
-  
-  # Get the verification status
-  VERIFICATION_STATUS=$(aws ses get-identity-verification-attributes --identities "${FULL_DOMAIN}" --query "VerificationAttributes['${FULL_DOMAIN}'].VerificationStatus" --output text --region "${REGION}")
-  
-  if [ "${VERIFICATION_STATUS}" == "Success" ]; then
-    echo "${FULL_DOMAIN} is already verified."
+  if [ "${ENVIRONMENT}" == "NonProd" ]; then
+    FULL_DOMAIN="${SUBDOMAIN}-np.${BASE_DOMAIN}"
   else
-    echo "${FULL_DOMAIN} is not verified."
-    
-    # Create SES domain identity if it doesn't exist
-    aws ses verify-domain-identity --domain "${FULL_DOMAIN}" --region "${REGION}"
-    
-    # Get the verification token
-    VERIFICATION_TOKEN=$(aws ses get-identity-verification-attributes --identities "${FULL_DOMAIN}" --query "VerificationAttributes['${FULL_DOMAIN}'].VerificationToken" --output text --region "${REGION}")
-    
-    echo "Verification token for ${FULL_DOMAIN}: ${VERIFICATION_TOKEN}"
-    
-    # Add verification token to Route 53
-    add_verification_token_to_route53 "${FULL_DOMAIN}" "${VERIFICATION_TOKEN}"
-    
-    echo "Please wait for the DNS changes to propagate and check the SES console to confirm verification."
+    FULL_DOMAIN="${SUBDOMAIN}.${BASE_DOMAIN}"
   fi
   
-  echo ""
-done
-
-echo "Script completed."
+  echo "Checking SES domain identity
