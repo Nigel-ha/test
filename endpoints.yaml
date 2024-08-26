@@ -5,13 +5,13 @@ Resources:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: com.amazonaws.ap-southeast-2.email.smtp
-      VpcId: !ImportValue SCE-smtp-secure-endpoint-VPCId
+      VpcId: !ImportValue SCE-VPCId
       SubnetIds:
-        - !ImportValue SCE-smtp-secure-endpoint-SubnetAId
-        - !ImportValue SCE-smtp-secure-endpoint-SubnetBId
-        - !ImportValue SCE-smtp-secure-endpoint-SubnetCId
+        - !ImportValue SCE-SubnetAId
+        - !ImportValue SCE-SubnetBId
+        - !ImportValue SCE-SubnetCId
       SecurityGroupIds:
-        - !ImportValue SCE-smtp-secure-endpoint-SecurityGroupId
+        - !ImportValue SCE-SecurityGroupId
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
 
@@ -20,7 +20,7 @@ Resources:
     Type: AWS::EC2::VPCEndpointService
     Properties:
       NetworkLoadBalancerArns:
-        - !ImportValue SCE-smtp-secure-endpoint-VPCServiceNLBArn
+        - !ImportValue SCE-VPCServiceNLBArn
       AcceptanceRequired: false
 
   # Create an IAM User for SES SMTP with restrictive policies
