@@ -197,11 +197,74 @@ Resources:
         - Key: StackName
           Value: !Ref AWS::StackName
 
-Outputs:
-  VPCServiceName:
-    Description: "The name of the VPC Endpoint Service"
-    Value: !Ref VPCService
+  # Create an IAM User for SES SMTP with restrictive policies
+  SESSMTPUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "${AWS::StackName}-ses-smtp-user"
+      Policies:
+        - PolicyName: "SESSMTPPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ses:SendEmail"
+                  - "ses:SendRawEmail"
+                Resource: "*"
+              - Effect: "Deny"
+                Action:
+                  - "ses:SendEmail"
+                  - "ses:SendRawEmail"
+                Resource: "*"
+                Condition:
+                  StringNotEquals:
+                    "aws:sourceVpce": !Ref SESSMTPVPCEndpoint
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-user"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
 
-  NLBArn:
-    Description: "The ARN of the Network Load Balancer"
-    Value: !Ref EndpointServiceNLB
+  # Create the Access Key for the SES SMTP User
+  SESSMTPAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref SESSMTPUser
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-access-key"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Store the SMTP Password in AWS Secrets Manager
+  SMTPPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}/ses-smtp-password"
+      SecretString: !GetAtt SESSMTPAccessKey.SecretAccessKey
+      Description: SMTP credentials for SES
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-password"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+Outputs:
+  SMTPUserName:
+    Description: "The SMTP username (IAM user) for SES."
+    Value: !Ref SESSMTPUser
+
+  SMTPPasswordSecretArn:
+    Description: "The ARN of the Secrets Manager secret storing the SMTP password."
+    Value: !Ref SMTPPasswordSecret
+
+  VPCEndpointId:
+    Description: "The ID of the VPC Endpoint created for SES SMTP."
+    Value: !Ref SESSMTPVPCEndpoint
