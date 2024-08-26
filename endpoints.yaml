@@ -137,4 +137,3 @@ Outputs:
     Value: !Ref VPCService
     Export:
       Name: !Sub "SCE-${AWS::StackName}-VPCEndpointServiceName"
-
