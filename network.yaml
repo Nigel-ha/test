@@ -161,37 +161,37 @@ Resources:
           TargetGroupArn: !Ref EndpointServiceTargetGroup
 
 Outputs:
-  SCE-VPCId:
+  VPCId:
     Description: "The ID of the VPC created for SES SMTP."
     Value: !Ref SESVPC
     Export:
       Name: !Sub "SCE-${AWS::StackName}-VPCId"
 
-  SCE-SubnetAId:
+  SubnetAId:
     Description: "The ID of Subnet A."
     Value: !Ref SESSubnetA
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SubnetAId"
 
-  SCE-SubnetBId:
+  SubnetBId:
     Description: "The ID of Subnet B."
     Value: !Ref SESSubnetB
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SubnetBId"
 
-  SCE-SubnetCId:
+  SubnetCId:
     Description: "The ID of Subnet C."
     Value: !Ref SESSubnetC
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SubnetCId"
 
-  SCE-SecurityGroupId:
+  SecurityGroupId:
     Description: "The ID of the Security Group for the Endpoint Service."
     Value: !Ref EndpointServiceSG
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SecurityGroupId"
 
-  SCE-VPCServiceNLBArn:
+  VPCServiceNLBArn:
     Description: "The ARN of the Network Load Balancer used by the VPC Endpoint Service."
     Value: !Ref EndpointServiceNLB
     Export:
