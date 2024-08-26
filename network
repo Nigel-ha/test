@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Create a VPC
+  SESVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-vpc"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet A
+  SESSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-a"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet B
+  SESSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-b"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet C
+  SESSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-c"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create a Security Group for the SES SMTP VPC Endpoint
+  SESSMTPVPCEndpointSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SMTP traffic for SES VPC Endpoint
+      VpcId: !Ref SESVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 25
+          ToPort: 25
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
+        - IpProtocol: tcp
+          FromPort: 465
+          ToPort: 465
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
+        - IpProtocol: tcp
+          FromPort: 587
+          ToPort: 587
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-sg"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create the VPC Endpoint for SES SMTP
+  SESSMTPVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: com.amazonaws.ap-southeast-2.email.smtp
+      VpcId: !Ref SESVPC
+      SubnetIds:
+        - !Ref SESSubnetA
+        - !Ref SESSubnetB
+        - !Ref SESSubnetC
+      SecurityGroupIds:
+        - !Ref SESSMTPVPCEndpointSG
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-endpoint"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create an IAM User for SES SMTP with restrictive policies
+  SESSMTPUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "${AWS::StackName}-ses-smtp-user"
+      Policies:
+        - PolicyName: "SESSMTPPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ses:SendEmail"
+                  - "ses:SendRawEmail"
+                Resource: "*"
+              - Effect: "Deny"
+                Action:
+                  - "ses:SendEmail"
+                  - "ses:SendRawEmail"
+                Resource: "*"
+                Condition:
+                  StringNotEquals:
+                    "aws:sourceVpce": !Ref SESSMTPVPCEndpoint
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-user"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create the Access Key for the SES SMTP User
+  SESSMTPAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref SESSMTPUser
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-access-key"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Store the SMTP Password in AWS Secrets Manager
+  SMTPPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}/ses-smtp-password"
+      SecretString: !GetAtt SESSMTPAccessKey.SecretAccessKey
+      Description: SMTP credentials for SES
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ses-smtp-password"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+Outputs:
+  SMTPUserName:
+    Description: "The SMTP username (IAM user) for SES."
+    Value: !Ref SESSMTPUser
+
+  SMTPPasswordSecretArn:
+    Description: "The ARN of the Secrets Manager secret storing the SMTP password."
+    Value: !Ref SMTPPasswordSecret
+
+  VPCEndpointId:
+    Description: "The ID of the VPC Endpoint created for SES SMTP."
+    Value: !Ref SESSMTPVPCEndpoint
