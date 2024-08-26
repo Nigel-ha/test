@@ -243,31 +243,31 @@ Resources:
           Value: !Ref AWS::StackName
 
 Outputs:
-  SCE-SMTPUserName:
+  SMTPUserName:
     Description: "The SMTP username (IAM user) for SES."
     Value: !Ref SESSMTPUser
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SMTPUserName"
 
-  SCE-SMTPPasswordSecretArn:
+  SMTPPasswordSecretArn:
     Description: "The ARN of the Secrets Manager secret storing the SMTP password."
     Value: !Ref SMTPPasswordSecret
     Export:
       Name: !Sub "SCE-${AWS::StackName}-SMTPPasswordSecretArn"
 
-  SCE-VPCEndpointId:
+  VPCEndpointId:
     Description: "The ID of the VPC Endpoint created for SES SMTP."
     Value: !Ref SESSMTPVPCEndpoint
     Export:
       Name: !Sub "SCE-${AWS::StackName}-VPCEndpointId"
 
-  SCE-VPCEndpointServiceName:
+  VPCEndpointServiceName:
     Description: "The name of the VPC Endpoint Service."
     Value: !Ref VPCService
     Export:
       Name: !Sub "SCE-${AWS::StackName}-VPCEndpointServiceName"
 
-  SCE-VPCServiceNLBArn:
+  VPCServiceNLBArn:
     Description: "The ARN of the Network Load Balancer used by the VPC Endpoint Service."
     Value: !Ref EndpointServiceNLB
     Export:
