@@ -9,7 +9,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-vpc"
+          Value: smtp-secure-endpoint-vpc
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -25,7 +25,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-subnet-a"
+          Value: smtp-secure-endpoint-subnet-a
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -41,7 +41,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-subnet-b"
+          Value: smtp-secure-endpoint-subnet-b
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -57,7 +57,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-subnet-c"
+          Value: smtp-secure-endpoint-subnet-c
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -84,7 +84,7 @@ Resources:
           CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-endpoint-service-sg"
+          Value: smtp-secure-endpoint-endpoint-service-sg
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -102,7 +102,7 @@ Resources:
         - !Ref SESSubnetC
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-nlb"
+          Value: smtp-secure-endpoint-nlb
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -120,7 +120,7 @@ Resources:
       HealthCheckPort: traffic-port
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-tg"
+          Value: smtp-secure-endpoint-tg
         - Key: StackId
           Value: !Ref AWS::StackId
         - Key: StackName
@@ -162,34 +162,34 @@ Outputs:
     Description: "The ID of the VPC created for SES SMTP."
     Value: !Ref SESVPC
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-VPCId"
+      Name: "SCE-VPCId"
 
   SubnetAId:
     Description: "The ID of Subnet A."
     Value: !Ref SESSubnetA
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-SubnetAId"
+      Name: "SCE-SubnetAId"
 
   SubnetBId:
     Description: "The ID of Subnet B."
     Value: !Ref SESSubnetB
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-SubnetBId"
+      Name: "SCE-SubnetBId"
 
   SubnetCId:
     Description: "The ID of Subnet C."
     Value: !Ref SESSubnetC
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-SubnetCId"
+      Name: "SCE-SubnetCId"
 
   SecurityGroupId:
     Description: "The ID of the Security Group for the Endpoint Service."
     Value: !Ref EndpointServiceSG
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-SecurityGroupId"
+      Name: "SCE-SecurityGroupId"
 
   VPCServiceNLBArn:
     Description: "The ARN of the Network Load Balancer used by the VPC Endpoint Service."
     Value: !Ref EndpointServiceNLB
     Export:
-      Name: !Sub "SCE-${AWS::StackName}-VPCServiceNLBArn"
+      Name: "SCE-VPCServiceNLBArn"
