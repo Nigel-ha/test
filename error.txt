@@ -1,1 +1,1 @@
-Properties validation failed for resource SESSMTPVPCEndpoint with message: [#: extraneous key [Tags] is not permitted]
+Properties validation failed for resource VPCService with message: [#: extraneous key [AllowedPrincipals] is not permitted, #: extraneous key [Tags] is not permitted]
