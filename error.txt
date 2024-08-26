@@ -1,1 +1,1 @@
-Resource handler returned message: "Load balancer attribute key 'load_balancer_cross_zone_enabled' is not recognized (Service: ElasticLoadBalancingV2, Status Code: 400, Request ID: 7664a290-59dc-4c69-835f-a74a55fd78e8)" (RequestToken: 24640556-59f7-f4c2-d0d4-f0aa2028fd72, HandlerErrorCode: InvalidRequest)
+No export named SCE-smtp-secure-endpoint-VPCServiceNLBArn found. Rollback requested by user.
