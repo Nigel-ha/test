@@ -100,9 +100,6 @@ Resources:
         - !Ref SESSubnetA
         - !Ref SESSubnetB
         - !Ref SESSubnetC
-      LoadBalancerAttributes:
-        - Key: load_balancer_cross_zone_enabled
-          Value: "true"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-nlb"
