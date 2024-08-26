@@ -1,48 +1,17 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Parameters:
-  VPCId:
-    Type: String
-    Description: The ID of the VPC where the VPC Endpoint will be created.
-    Default: !ImportValue SCE-smtp-secure-endpoint-VPCId
-
-  SubnetAId:
-    Type: String
-    Description: The ID of Subnet A.
-    Default: !ImportValue SCE-smtp-secure-endpoint-SubnetAId
-
-  SubnetBId:
-    Type: String
-    Description: The ID of Subnet B.
-    Default: !ImportValue SCE-smtp-secure-endpoint-SubnetBId
-
-  SubnetCId:
-    Type: String
-    Description: The ID of Subnet C.
-    Default: !ImportValue SCE-smtp-secure-endpoint-SubnetCId
-
-  SecurityGroupId:
-    Type: String
-    Description: The ID of the Security Group for the Endpoint Service.
-    Default: !ImportValue SCE-smtp-secure-endpoint-SecurityGroupId
-
-  VPCServiceNLBArn:
-    Type: String
-    Description: The ARN of the Network Load Balancer used by the VPC Endpoint Service.
-    Default: !ImportValue SCE-smtp-secure-endpoint-VPCServiceNLBArn
-
 Resources:
   # Create the SES SMTP VPC Endpoint
   SESSMTPVPCEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       ServiceName: com.amazonaws.ap-southeast-2.email.smtp
-      VpcId: !Ref VPCId
+      VpcId: !ImportValue SCE-smtp-secure-endpoint-VPCId
       SubnetIds:
-        - !Ref SubnetAId
-        - !Ref SubnetBId
-        - !Ref SubnetCId
+        - !ImportValue SCE-smtp-secure-endpoint-SubnetAId
+        - !ImportValue SCE-smtp-secure-endpoint-SubnetBId
+        - !ImportValue SCE-smtp-secure-endpoint-SubnetCId
       SecurityGroupIds:
-        - !Ref SecurityGroupId
+        - !ImportValue SCE-smtp-secure-endpoint-SecurityGroupId
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
 
@@ -51,7 +20,7 @@ Resources:
     Type: AWS::EC2::VPCEndpointService
     Properties:
       NetworkLoadBalancerArns:
-        - !Ref VPCServiceNLBArn
+        - !ImportValue SCE-smtp-secure-endpoint-VPCServiceNLBArn
       AcceptanceRequired: false
 
   # Create an IAM User for SES SMTP with restrictive policies
