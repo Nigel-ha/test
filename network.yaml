@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ExternalAccountId:
+    Type: String
+    Description: "The AWS account ID that will be allowed to create endpoints for this service."
+
+Resources:
+  # Create a VPC
+  SESVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-vpc"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet A
+  SESSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-a"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet B
+  SESSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-b"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create Subnet C
+  SESSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SESVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-c"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create a Security Group for the Endpoint Service
+  EndpointServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SMTP traffic to the endpoint service
+      VpcId: !Ref SESVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 25
+          ToPort: 25
+          CidrIp: 0.0.0.0/0  # Modify as needed for security
+        - IpProtocol: tcp
+          FromPort: 465
+          ToPort: 465
+          CidrIp: 0.0.0.0/0  # Modify as needed for security
+        - IpProtocol: tcp
+          FromPort: 587
+          ToPort: 587
+          CidrIp: 0.0.0.0/0  # Modify as needed for security
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-endpoint-service-sg"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create the SES SMTP VPC Endpoint
+  SESSMTPVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: com.amazonaws.ap-southeast-2.email.smtp
+      VpcId: !Ref SESVPC
+      SubnetIds:
+        - !Ref SESSubnetA
+        - !Ref SESSubnetB
+        - !Ref SESSubnetC
+      SecurityGroupIds:
+        - !Ref EndpointServiceSG
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  # Create a Network Load Balancer (NLB) for the Endpoint Service
+  EndpointServiceNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Scheme: internal
+      Subnets:
+        - !Ref SESSubnetA
+        - !Ref SESSubnetB
+        - !Ref SESSubnetC
+      LoadBalancerAttributes:
+        - Key: load_balancer_cross_zone_enabled
+          Value: "true"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-nlb"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Create a Target Group for the NLB
+  EndpointServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref SESVPC
+      Port: 25  # Listen on SMTP port 25
+      Protocol: TCP
+      TargetType: ip
+      HealthCheckProtocol: TCP
+      HealthCheckPort: traffic-port
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-tg"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+  # Attach the Target Group to the NLB for each SMTP port
+  EndpointServiceListener25:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref EndpointServiceNLB
+      Protocol: TCP
+      Port: 25
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EndpointServiceTargetGroup
+
+  EndpointServiceListener465:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref EndpointServiceNLB
+      Protocol: TCP
+      Port: 465
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EndpointServiceTargetGroup
+
+  EndpointServiceListener587:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref EndpointServiceNLB
+      Protocol: TCP
+      Port: 587
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EndpointServiceTargetGroup
+
+  # Create the VPC Endpoint Service
+  VPCService:
+    Type: AWS::EC2::VPCEndpointService
+    Properties:
+      NetworkLoadBalancerArns:
+        - !Ref EndpointServiceNLB
+      AcceptanceRequired: false
+      AllowedPrincipals:
+        - !Sub "arn:aws:iam::${ExternalAccountId}:root"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-vpc-endpoint-service"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+Outputs:
+  VPCServiceName:
+    Description: "The name of the VPC Endpoint Service"
+    Value: !Ref VPCService
+
+  NLBArn:
+    Description: "The ARN of the Network Load Balancer"
+    Value: !Ref EndpointServiceNLB
