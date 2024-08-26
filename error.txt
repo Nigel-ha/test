@@ -1,3 +1,1 @@
-com.amazonaws.ap-southeast-2.email-smtp
-
-Resource handler returned message: "The Vpc Endpoint Service 'com.amazonaws.ap-southeast-2.email.smtp' does not exist (Service: Ec2, Status Code: 400, Request ID: 91e12598-665c-4a38-a8ef-c5e59f935d6c)" (RequestToken: 2ab6177e-2af8-782a-a2d0-d1b01bc98e78, HandlerErrorCode: InvalidRequest)
+Resource handler returned message: "Load balancer attribute key 'load_balancer_cross_zone_enabled' is not recognized (Service: ElasticLoadBalancingV2, Status Code: 400, Request ID: 7664a290-59dc-4c69-835f-a74a55fd78e8)" (RequestToken: 24640556-59f7-f4c2-d0d4-f0aa2028fd72, HandlerErrorCode: InvalidRequest)
