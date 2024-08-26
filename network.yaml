@@ -1,9 +1,4 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Parameters:
-  ExternalAccountId:
-    Type: String
-    Description: "The AWS account ID that will be allowed to create endpoints for this service."
-
 Resources:
   # Create a VPC
   SESVPC:
@@ -78,15 +73,15 @@ Resources:
         - IpProtocol: tcp
           FromPort: 25
           ToPort: 25
-          CidrIp: 0.0.0.0/0  # Modify as needed for security
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
         - IpProtocol: tcp
           FromPort: 465
           ToPort: 465
-          CidrIp: 0.0.0.0/0  # Modify as needed for security
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
         - IpProtocol: tcp
           FromPort: 587
           ToPort: 587
-          CidrIp: 0.0.0.0/0  # Modify as needed for security
+          CidrIp: 10.0.0.0/16  # Restrict to VPC CIDR
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-endpoint-service-sg"
@@ -187,15 +182,6 @@ Resources:
       NetworkLoadBalancerArns:
         - !Ref EndpointServiceNLB
       AcceptanceRequired: false
-      AllowedPrincipals:
-        - !Sub "arn:aws:iam::${ExternalAccountId}:root"
-      Tags:
-        - Key: Name
-          Value: !Sub "${AWS::StackName}-vpc-endpoint-service"
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
 
   # Create an IAM User for SES SMTP with restrictive policies
   SESSMTPUser:
@@ -257,14 +243,32 @@ Resources:
           Value: !Ref AWS::StackName
 
 Outputs:
-  SMTPUserName:
+  SCE-SMTPUserName:
     Description: "The SMTP username (IAM user) for SES."
     Value: !Ref SESSMTPUser
+    Export:
+      Name: !Sub "SCE-${AWS::StackName}-SMTPUserName"
 
-  SMTPPasswordSecretArn:
+  SCE-SMTPPasswordSecretArn:
     Description: "The ARN of the Secrets Manager secret storing the SMTP password."
     Value: !Ref SMTPPasswordSecret
+    Export:
+      Name: !Sub "SCE-${AWS::StackName}-SMTPPasswordSecretArn"
 
-  VPCEndpointId:
+  SCE-VPCEndpointId:
     Description: "The ID of the VPC Endpoint created for SES SMTP."
     Value: !Ref SESSMTPVPCEndpoint
+    Export:
+      Name: !Sub "SCE-${AWS::StackName}-VPCEndpointId"
+
+  SCE-VPCEndpointServiceName:
+    Description: "The name of the VPC Endpoint Service."
+    Value: !Ref VPCService
+    Export:
+      Name: !Sub "SCE-${AWS::StackName}-VPCEndpointServiceName"
+
+  SCE-VPCServiceNLBArn:
+    Description: "The ARN of the Network Load Balancer used by the VPC Endpoint Service."
+    Value: !Ref EndpointServiceNLB
+    Export:
+      Name: !Sub "SCE-${AWS::StackName}-VPCServiceNLBArn"
