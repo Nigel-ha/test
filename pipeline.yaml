@@ -41,7 +41,12 @@ stages:
                     echo "Config file $CONFIG_FILE not found!"
                     exit 1
                 fi
+CLUSTER_EXISTS=$(jq -r --arg cluster "$CLUSTER_NAME" 'has($cluster)' "$CONFIG_FILE")
 
+if [ "$CLUSTER_EXISTS" != "true" ]; then
+    echo "Error: No such cluster '$CLUSTER_NAME' found in $CONFIG_FILE."
+    exit 1
+fi
                 # Use jq to extract key/value pairs for the specified cluster
                 jq -r --arg cluster "$CLUSTER_NAME" '
                   .[$cluster] | to_entries | .[] | "\(.key)=\(.value)"
