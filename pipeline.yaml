@@ -1,0 +1,79 @@
+trigger:
+  - main
+
+parameters:
+  - name: clusterName
+    displayName: Cluster Name
+    type: string
+    default: clusterA
+
+stages:
+  - stage: SetVariables
+    displayName: "Set Variables from config.json"
+    jobs:
+      - job: ParseConfig
+        displayName: "Parse config.json and set pipeline variables"
+        steps:
+          - checkout: self  # Ensure the repo is checked out to access config.json
+
+          - task: Bash@3
+            displayName: "Install jq if not present"
+            inputs:
+              targetType: 'inline'
+              script: |
+                if ! command -v jq &> /dev/null
+                then
+                    echo "jq not found, installing..."
+                    sudo apt-get update && sudo apt-get install -y jq
+                else
+                    echo "jq is already installed."
+                fi
+
+          - task: Bash@3
+            displayName: "Extract and export variables"
+            inputs:
+              targetType: 'inline'
+              script: |
+                CONFIG_FILE="config.json"
+                CLUSTER_NAME="${{ parameters.clusterName }}"
+
+                if [ ! -f "$CONFIG_FILE" ]; then
+                    echo "Config file $CONFIG_FILE not found!"
+                    exit 1
+                fi
+
+                # Use jq to extract key/value pairs for the specified cluster
+                jq -r --arg cluster "$CLUSTER_NAME" '
+                  .[$cluster] | to_entries | .[] | "\(.key)=\(.value)"
+                ' "$CONFIG_FILE" > cluster_vars.env
+
+                # Check if any variables were extracted
+                if [ ! -s cluster_vars.env ]; then
+                    echo "No variables found for cluster '$CLUSTER_NAME' in $CONFIG_FILE."
+                    exit 1
+                fi
+
+                # Export each key/value pair as pipeline variables
+                while IFS= read -r line
+                do
+                    key=$(echo "$line" | cut -d '=' -f1)
+                    value=$(echo "$line" | cut -d '=' -f2-)
+                    echo "Setting variable '$key' with value '$value'"
+                    echo "##vso[task.setvariable variable=$key]$value"
+                done < cluster_vars.env
+
+          - script: echo "Variables have been set from config.json"
+            displayName: "Confirm Variables Set"
+
+  - stage: UseVariables
+    displayName: "Use the Exported Variables"
+    dependsOn: SetVariables
+    jobs:
+      - job: UseVars
+        displayName: "Use Pipeline Variables"
+        steps:
+          - script: |
+              echo "Database: $(database)"
+              echo "Region: $(region)"
+              echo "Replicas: $(replicas)"
+            displayName: "Print Extracted Variables"
