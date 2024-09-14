@@ -230,31 +230,6 @@ Resources:
         - Key: SCE:owner
           Value: CET
 
-  ALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow traffic to ALB
-      VpcId: !Ref SpokeVpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Sub "${AllowedIP1}/32"
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Sub "${AllowedIP2}/32"
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Sub "${AllowedIP3}/32"
-      Tags:
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
-        - Key: SCE:owner
-          Value: CET
 
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -300,8 +275,7 @@ Resources:
             Sid: AllowALB
             Effect: Allow
             Principal:
-              # Sydney ELB account
-              AWS: !Sub arn:aws:iam::783225319266:root
+              AWS: arn:aws:iam::127311923021:root  # NLB service account for ap-southeast-2
             Action: "s3:PutObject"
             Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
           -
@@ -330,65 +304,57 @@ Resources:
               ArnLike:
                 aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
 
-  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: !Sub "${ClusterName}-alb"
-      Scheme: internal
-      Type: application
-      Subnets: !Ref SubnetIds
-      SecurityGroups:
-        - !Ref ALBSecurityGroup
-      LoadBalancerAttributes:
-        - Key: load_balancing.cross_zone.enabled
-          Value: true
-        - Key: access_logs.s3.enabled
-          Value: true
-        - Key: access_logs.s3.bucket
-          Value: !Ref S3Bucket
-        - Key: routing.http.drop_invalid_header_fields.enabled
-          Value: true
+NLB:
+  Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  Properties:
+    Name: !Sub "${ClusterName}-nlb"
+    Scheme: internal
+    Type: network
+    Subnets: !Ref SubnetIds
+    LoadBalancerAttributes:
+      - Key: load_balancing.cross_zone.enabled
+        Value: 'true'
+      - Key: access_logs.s3.enabled
+        Value: 'true'
+      - Key: access_logs.s3.bucket
+        Value: !Ref S3Bucket
+      - Key: access_logs.s3.prefix
+        Value: !Sub "${ClusterName}-nlb"
+    Tags:
+      - Key: StackId
+        Value: !Ref AWS::StackId
+      - Key: StackName
+        Value: !Ref AWS::StackName
+      - Key: Resource
+        Value: CET
 
-      Tags:
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
-        - Key: Resource
-          Value: CET
+NLBTargetGroup:
+  Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  Properties:
+    Name: !Sub "${ClusterName}-tg"
+    Port: 443
+    Protocol: TCP
+    VpcId: !Ref SpokeVpcId
+    TargetType: ip
+    HealthCheckProtocol: TCP
+    HealthCheckPort: 443
+    Tags:
+      - Key: StackId
+        Value: !Ref AWS::StackId
+      - Key: StackName
+        Value: !Ref AWS::StackName
+      - Key: Resource
+        Value: CET
 
-  ALBTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub "${ClusterName}-tg"
-      Port: 443
-      Protocol: HTTPS
-      VpcId: !Ref SpokeVpcId
-      TargetType: ip
-      HealthCheckProtocol: HTTPS
-      HealthCheckPort: 443
-      HealthCheckPath: "/healthz"
-      Matcher:
-        HttpCode: "200-299"
-      Tags:
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
-        - Key: Resource
-          Value: CET
-
-  ALBListener:
+  NLBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref ALB
+      LoadBalancerArn: !Ref NLB
       Port: 443
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref SSLCertificateArn
+      Protocol: TCP
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref ALBTargetGroup
+          TargetGroupArn: !Ref NLBTargetGroup
       Tags:
         - Key: StackId
           Value: !Ref AWS::StackId
@@ -455,16 +421,17 @@ Resources:
               - '"'
       TTL: 60
 
-  Route53RecordA:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
-      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt ALB.DNSName
-        HostedZoneId: !FindInMap [AWSHostedZoneIds, ap-southeast-2, HostedZoneId]
-      Comment: "k8s API"
+Route53RecordA:
+  Type: AWS::Route53::RecordSet
+  Properties:
+    HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
+    Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+    Type: A
+    AliasTarget:
+      DNSName: !GetAtt NLB.DNSName
+      HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
+    Comment: "k8s API"
+
 
 Outputs:
   ClusterName:
@@ -476,6 +443,7 @@ Outputs:
   ClusterEndpoint:
     Description: 'EKS Cluster endpoint'
     Value: !GetAtt EKSCluster.Endpoint
-  ALBDNSName:
-    Description: 'ALB DNS Name'
-    Value: !GetAtt ALB.DNSName
+NLBDNSName:
+  Description: 'NLB DNS Name'
+  Value: !GetAtt NLB.DNSName
+
