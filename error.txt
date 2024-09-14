@@ -1,8 +1,1 @@
-Checking cluster nodes status...
-E0902 05:28:39.579794    3971 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0902 05:28:40.653332    3971 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0902 05:28:41.814320    3971 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0902 05:28:43.113831    3971 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0902 05:28:44.462846    3971 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-error: You must be logged in to the server (the server has asked for the client to provide credentials)
-Error: Failed to connect to the EKS cluster or retrieve node information. Check your kubeconfig and cluster status.
+Resource handler returned message: "Access Denied for bucket: sce-eksv3-alb-logs. Please check S3bucket permission (Service: ElasticLoadBalancingV2, Status Code: 400, Request ID: 991e830a-dd85-4043-81b6-b77d0b569d05)" (RequestToken: 968b311a-3ec8-bf27-db4f-41cd0401c167, HandlerErrorCode: InvalidRequest)
