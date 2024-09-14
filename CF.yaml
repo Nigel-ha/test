@@ -269,6 +269,12 @@ Resources:
                 aws:SourceAccount: !Ref AWS::AccountId
               ArnLike:
                 aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+          - Sid: AllowNLBAccessLogs
+            Effect: Allow
+            Principal:
+              Service: network-load-balancer.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
           -
             Sid: AWSLogDeliveryWriteNLB
             Effect: Allow
