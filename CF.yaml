@@ -22,27 +22,6 @@ Parameters:
   SubnetIds:
     Type: CommaDelimitedList
     Description: 'Comma separated list of subnet IDs in Spoke VPC for ALB'
-  AllowedIP1:
-    Type: String
-    Description: 'First allowed IP address for EKS cluster access'
-    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}$'
-    ConstraintDescription: 'Allowed IP address must be a valid IPv4 address.'
-    Default: 20.37.10.126
-  AllowedIP2:
-    Type: String
-    Description: 'Second allowed IP address for EKS cluster access'
-    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}$'
-    ConstraintDescription: 'Allowed IP address must be a valid IPv4 address.'
-    Default: 20.70.10.59
-  AllowedIP3:
-    Type: String
-    Description: 'Third allowed IP address for EKS cluster access'
-    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}$'
-    ConstraintDescription: 'Allowed IP address must be a valid IPv4 address.'
-    Default: 20.211.138.152
-  SSLCertificateArn:
-    Type: String
-    Description: 'ARN of the SSL certificate for ALB'
   SpokeDomain:
     Type: String
     Description: 'The domain name for the private hosted zone'
@@ -304,47 +283,47 @@ Resources:
               ArnLike:
                 aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
 
-NLB:
-  Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-  Properties:
-    Name: !Sub "${ClusterName}-nlb"
-    Scheme: internal
-    Type: network
-    Subnets: !Ref SubnetIds
-    LoadBalancerAttributes:
-      - Key: load_balancing.cross_zone.enabled
-        Value: 'true'
-      - Key: access_logs.s3.enabled
-        Value: 'true'
-      - Key: access_logs.s3.bucket
-        Value: !Ref S3Bucket
-      - Key: access_logs.s3.prefix
-        Value: !Sub "${ClusterName}-nlb"
-    Tags:
-      - Key: StackId
-        Value: !Ref AWS::StackId
-      - Key: StackName
-        Value: !Ref AWS::StackName
-      - Key: Resource
-        Value: CET
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ClusterName}-nlb"
+      Scheme: internal
+      Type: network
+      Subnets: !Ref SubnetIds
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'
+        - Key: access_logs.s3.enabled
+          Value: 'true'
+        - Key: access_logs.s3.bucket
+          Value: !Ref S3Bucket
+        - Key: access_logs.s3.prefix
+          Value: !Sub "${ClusterName}-nlb"
+      Tags:
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+        - Key: Resource
+          Value: CET
 
-NLBTargetGroup:
-  Type: AWS::ElasticLoadBalancingV2::TargetGroup
-  Properties:
-    Name: !Sub "${ClusterName}-tg"
-    Port: 443
-    Protocol: TCP
-    VpcId: !Ref SpokeVpcId
-    TargetType: ip
-    HealthCheckProtocol: TCP
-    HealthCheckPort: 443
-    Tags:
-      - Key: StackId
-        Value: !Ref AWS::StackId
-      - Key: StackName
-        Value: !Ref AWS::StackName
-      - Key: Resource
-        Value: CET
+  NLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ClusterName}-tg"
+      Port: 443
+      Protocol: TCP
+      VpcId: !Ref SpokeVpcId
+      TargetType: ip
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 443
+      Tags:
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+        - Key: Resource
+          Value: CET
 
   NLBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -421,17 +400,16 @@ NLBTargetGroup:
               - '"'
       TTL: 60
 
-Route53RecordA:
-  Type: AWS::Route53::RecordSet
-  Properties:
-    HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
-    Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
-    Type: A
-    AliasTarget:
-      DNSName: !GetAtt NLB.DNSName
-      HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
-    Comment: "k8s API"
-
+  Route53RecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
+      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt NLB.DNSName
+        HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
+      Comment: "k8s API"
 
 Outputs:
   ClusterName:
@@ -443,7 +421,6 @@ Outputs:
   ClusterEndpoint:
     Description: 'EKS Cluster endpoint'
     Value: !GetAtt EKSCluster.Endpoint
-NLBDNSName:
-  Description: 'NLB DNS Name'
-  Value: !GetAtt NLB.DNSName
-
+  NLBDNSName:
+    Description: 'NLB DNS Name'
+    Value: !GetAtt NLB.DNSName
