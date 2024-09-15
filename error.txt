@@ -1,3 +1,8 @@
-curl -o kubectl https://amazonaws.com/kubernetes-release/release/`curl -s https://amazonaws.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
-chmod +x ./kubectl
-sudo mv ./kubectl /usr/local/bin/kubectl
+[cloudshell-user@ip-10-134-61-197 ~]$ kubectl get configmap aws-auth -n kube-system -o yaml 
+E0915 23:47:15.219215     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
+E0915 23:47:16.393551     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
+E0915 23:47:17.452015     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
+E0915 23:47:18.578749     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
+E0915 23:47:19.605158     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
+error: You must be logged in to the server (the server has asked for the client to provide credentials)
+[cloudshell-user@ip-10-134-61-197 ~]$ 
