@@ -1,0 +1,166 @@
+parameters:
+  - name: clusterName
+    displayName: Cluster Name
+    type: string
+  - name: serviceConnection
+    displayName: Service connection to use
+    type: string
+
+jobs:
+  - job: cloud
+    displayName: Generate EKS access token
+    pool:
+      name: prod-cloudpool-nix
+    steps:
+      - checkout: self
+      - checkout: commonScripts
+      - task: Bash@3
+        displayName: "Install"
+        inputs:
+          targetType: "inline"
+          script: |
+            mv SCE-EKS/* .
+            rm -rf SCE-EKS
+
+            uname -a
+            whoami
+            # which kubectl
+
+            mkdir -p keys
+            mkdir -p scripts
+            mkdir -p CF
+            mv SCE-Common/keys/* keys/
+            mv SCE-Common/scripts/*.* scripts/
+            # mv SCE-Common/CF/product CF/
+            rm -rf SCE-Common
+
+            chmod u+x scripts/*.sh
+            scripts/aws-cli.sh
+
+      - task: AzureKeyVault@2
+        displayName: 'Get ExternalID from KeyVault'
+        inputs:
+          azureSubscription: 'AKV Cloud Engineering Secret Reader'
+          KeyVaultName: 'kv-bcz-cet'
+          SecretsFilter: 'externalid'
+          RunAsPreJob: false
+
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate EKS Token'
+        name: generate
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
+            . scripts/setup.sh "${{parameters.clusterName}}"
+            token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+            echo "##vso[task.setvariable variable=eks_token;isOutput=true]$token"
+
+  - job: onPrem
+    displayName: Deploy
+    dependsOn: cloud
+    variables:
+      eks_token: $[ dependencies.cloud.outputs['generate.eks_token'] ]
+    pool:
+      name: Prod-ReleasePool-Lower
+    steps:
+    - task: PowerShell@2
+      displayName: 'Install kubectl'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Variables
+          $kubectlUrl = "https://nexus.bcz.gov.au/repository/raw-thirdparty/kubenetes/kubectl/v1.31.0/kubectl.exe"
+          $destinationPath = "$(Build.ArtifactStagingDirectory)\kubectl.exe"  # Destination to save kubectl
+
+          # Log the download information
+          Write-Host "Downloading kubectl from Nexus: $kubectlUrl"
+          
+          # Download the file
+          Invoke-WebRequest -Uri $kubectlUrl -OutFile $destinationPath
+
+          # Check if the file exists
+          if (Test-Path $destinationPath) {
+            Write-Host "kubectl downloaded successfully to $destinationPath"
+          } else {
+            Write-Host "Failed to download kubectl."
+            exit 1
+          }
+
+          # Add the directory to PATH
+          $env:PATH += ";$(Build.ArtifactStagingDirectory)"
+
+          # Verify kubectl version
+          & kubectl.exe version --client
+  
+    # - task: Bash@3
+    #   displayName: "Setup"
+    #   # env:
+    #   #   eks_token: $(eks_token)
+    #   inputs:
+    #     targetType: "inline"
+    #     script: |
+    #       set +e
+    #       uname -a
+    #       whoami
+    #       ifconfig
+    #       # which kubectl
+    #       # which docker
+    #       # docker version
+    #       echo "TOKEN: $(eks_token)"
+
+    # - task: Bash@3
+    #   displayName: Kubectl
+    #   inputs:
+    #     targetType: "inline"
+    #     script: |
+    #       podman pull nexus.bcz.gov.au:9444/docker.io/bitnami/kubectl
+    #       podman run --rm bitnami/kubectl version --client
+# curl.exe -LO "https://dl.k8s.io/release/v1.31.0/bin/windows/amd64/kubectl.exe"
+    # - task: PowerShell@2
+    #   displayName: "Try to install"
+    #   inputs:
+    #     targetType: 'inline'
+    #     script: |
+    #       docker
+          # winget install -e --id Kubernetes.kubectl
+          # scoop install kubectl
+          # choco install kubernetes-cli
+          # # Define the version of kubectl to install (replace with specific version if needed)
+          # $kubectlVersion = "v1.31.0"  # You can replace this with any specific version if required
+          # $downloadUrl = "https://dl.k8s.io/release/$kubectlVersion/bin/windows/amd64/kubectl.exe"
+
+          # # Define the destination path for kubectl
+          # $destinationPath = "$env:ProgramFiles\kubectl"
+          # $kubectlExePath = Join-Path $destinationPath "kubectl.exe"
+
+          # # Create the directory if it doesn't exist
+          # if (-not (Test-Path $destinationPath)) {
+          #     New-Item -ItemType Directory -Path $destinationPath
+          # }
+
+          # # Download kubectl.exe
+          # Write-Host "Downloading kubectl from $downloadUrl..."
+          # Invoke-WebRequest -Uri $downloadUrl -OutFile $kubectlExePath
+
+          # # Add the kubectl directory to the PATH environment variable if not already present
+          # $envPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+          # if ($envPath -notlike "*$destinationPath*") {
+          #     Write-Host "Adding kubectl to the system PATH..."
+          #     [System.Environment]::SetEnvironmentVariable("Path", $envPath + ";" + $destinationPath, [System.EnvironmentVariableTarget]::Machine)
+          # }
+
+          # Write-Host "kubectl installed successfully at $kubectlExePath"
+
+    # - task: PowerShell@2
+    #   displayName: "Powershell"
+    #   inputs:
+    #     targetType: 'inline'
+    #     script: |
+    #       Get-NetIPAddress -AddressFamily IPv4
+    #       docker version
+    #       docker info
+
