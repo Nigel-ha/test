@@ -1,10 +1,9 @@
 kubeconfig created at C:\Users\svc-devops_release\.kube\config
-NO_PROXY is set to sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com
 apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: DATA+OMITTED
-    server: https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com
+    insecure-skip-tls-verify: true
+    server: https://sce-eksv6-k8s-api.sandpit-apic-gateway.cp4.bcz.gov.au
   name: eks-cluster
 contexts:
 - context:
@@ -18,3 +17,11 @@ users:
 - name: eks-user
   user:
     token: REDACTED
+E0915 17:22:54.544416   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:22:54.639020   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:22:54.687211   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:22:54.748849   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:22:54.813959   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+error: You must be logged in to the server (the server has asked for the client to provide credentials)
+##[error]PowerShell exited with code '1'.
+Finishing: Configure kubeconfig
