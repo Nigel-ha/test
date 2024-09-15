@@ -1,8 +1,2 @@
-[cloudshell-user@ip-10-134-61-197 ~]$ kubectl get configmap aws-auth -n kube-system -o yaml 
-E0915 23:47:15.219215     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
-E0915 23:47:16.393551     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
-E0915 23:47:17.452015     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
-E0915 23:47:18.578749     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
-E0915 23:47:19.605158     204 memcache.go:265] couldn't get current server API group list: the server has asked for the client to provide credentials
-error: You must be logged in to the server (the server has asked for the client to provide credentials)
-[cloudshell-user@ip-10-134-61-197 ~]$ 
+Your current IAM principal doesn’t have access to Kubernetes objects on this cluster.
+This may be due to the current user or role not having Kubernetes RBAC permissions to describe cluster resources or not having an entry in the cluster’s auth config map.Learn more 
