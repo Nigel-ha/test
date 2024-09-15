@@ -1,3 +1,4 @@
+kubectl get configmap aws-auth -n kube-system -o yaml
 
 I0915 17:42:42.012109   13512 cached_discovery.go:120] skipped caching discovery info due to the server has asked for the client to provide credentials
 I0915 17:42:42.012109   13512 round_trippers.go:463] GET https://sce-eksv6-k8s-api.sandpit-apic-gateway.cp4.bcz.gov.au/api?timeout=32s
