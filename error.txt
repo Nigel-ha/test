@@ -1,19 +1,5 @@
-Requested attribute CanonicalHostedZoneId does not exist in schema for AWS::ElasticLoadBalancingV2::LoadBalancer
++ echo 'Registering new targets...'
+Registering new targets...
++ aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets '{"Id":"10.6.0.151","Port":443}' '{"Id":"10.6.2.55","Port":443}'
 
-
-  Route53RecordA:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
-      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt NLB.DNSName
-        HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
-      Comment: "k8s API"
-
-
-TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
-  --names "${CLUSTER_NAME}-nlb-tg" \
-  --query "TargetGroups[0].TargetGroupArn" \
-  --output text)
+An error occurred (ValidationError) when calling the RegisterTargets operation: The Availability Zone is required for IP address '10.6.0.151' because it is not in the VPC
