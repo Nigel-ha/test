@@ -209,16 +209,30 @@ Resources:
         - Key: SCE:owner
           Value: CET
 
-  S3Bucket:
+  AccessLogBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "${ClusterName}-logs"
+      BucketName: !Sub "${ClusterName}-${AWS::AccountId}-logs"
       AccessControl: Private
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteLifecycle
+            ExpirationInDays: 2600
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 2600
+          - Id: GlacierLifecycle
+            Status: Enabled
+            Transitions:
+            - StorageClass: GLACIER
+              TransitionInDays: 90
+            NoncurrentVersionTransitions:
+            - StorageClass: GLACIER
+              TransitionInDays: 90              
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -234,41 +248,55 @@ Resources:
         - Key: SCE:owner
           Value: CET
 
-S3BucketPolicy:
-  Type: AWS::S3::BucketPolicy
-  Properties:
-    Bucket: !Ref S3Bucket
-    PolicyDocument:
-      Version: '2012-10-17'
-      Statement:
-        - Sid: DenyInsecureTransport
-          Effect: Deny
-          Principal: '*'
-          Action: s3:*
-          Resource:
-            - !Sub "arn:aws:s3:::${S3Bucket}"
-            - !Sub "arn:aws:s3:::${S3Bucket}/*"
-          Condition:
-            Bool:
-              aws:SecureTransport: 'false'
-        - Sid: AllowNLBAccessLogs
-          Effect: Allow
-          Principal:
-            AWS: arn:aws:iam::985666609251:root
-          Action: s3:PutObject
-          Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
-          Condition:
-            StringEquals:
-              aws:SourceAccount: !Ref AWS::AccountId
-        - Sid: AllowNLBGetBucketAcl
-          Effect: Allow
-          Principal:
-            AWS: arn:aws:iam::985666609251:root
-          Action: s3:GetBucketAcl
-          Resource: !Sub "arn:aws:s3:::${S3Bucket}"
-          Condition:
-            StringEquals:
-              aws:SourceAccount: !Ref AWS::AccountId
+  AccessLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Action: s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${AccessLogBucket}"
+              - !Sub "arn:aws:s3:::${AccessLogBucket}/*"
+            Principal: '*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          -
+            Sid: AllowALB
+            Effect: Allow
+            Principal:
+              # Sydney ELB account
+              AWS: !Sub arn:aws:iam::783225319266:root
+            Action: "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${AccessLogBucket}/AWSLogs/${AWS::AccountId}/*"
+          -
+            Sid: DeliveryAclCheckNLB
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !Sub arn:aws:s3:::${AccessLogBucket}
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+          -
+            Sid: AWSLogDeliveryWriteNLB
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${AccessLogBucket}/AWSLogs/${AWS::AccountId}/*
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
 
   NLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -278,14 +306,16 @@ S3BucketPolicy:
       Type: network
       Subnets: !Ref SubnetIds
       LoadBalancerAttributes:
-        - Key: load_balancing.cross_zone.enabled
-          Value: 'true'
-        - Key: access_logs.s3.enabled
-          Value: 'true'
-        - Key: access_logs.s3.bucket
-          Value: !Ref S3Bucket
-        - Key: access_logs.s3.prefix
-          Value: !Sub "${ClusterName}-nlb"
+        -
+          Key: access_logs.s3.enabled
+          Value: true
+        -
+          Key: access_logs.s3.bucket
+          Value: !Ref AccessLogBucket
+        -
+          Key: load_balancing.cross_zone.enabled
+          Value: true
+
       Tags:
         - Key: StackId
           Value: !Ref AWS::StackId
@@ -312,22 +342,22 @@ S3BucketPolicy:
         - Key: Resource
           Value: CET
 
-  # NLBListener:
-  #   Type: AWS::ElasticLoadBalancingV2::Listener
-  #   Properties:
-  #     LoadBalancerArn: !Ref NLB
-  #     Port: 443
-  #     Protocol: TCP
-  #     DefaultActions:
-  #       - Type: forward
-  #         TargetGroupArn: !Ref NLBTargetGroup
-  #     Tags:
-  #       - Key: StackId
-  #         Value: !Ref AWS::StackId
-  #       - Key: StackName
-  #         Value: !Ref AWS::StackName
-  #       - Key: SCE:owner
-  #         Value: CET
+  NLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NLB
+      Port: 443
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup
+      Tags:
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+        - Key: SCE:owner
+          Value: CET
 
   VPCPeeringConnection:
     Type: AWS::EC2::VPCPeeringConnection
@@ -387,16 +417,16 @@ S3BucketPolicy:
               - '"'
       TTL: 60
 
-  # Route53RecordA:
-  #   Type: AWS::Route53::RecordSet
-  #   Properties:
-  #     HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
-  #     Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
-  #     Type: A
-  #     AliasTarget:
-  #       DNSName: !GetAtt NLB.DNSName
-  #       HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
-  #     Comment: "k8s API"
+  Route53RecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
+      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt NLB.DNSName
+        HostedZoneId: !GetAtt NLB.CanonicalHostedZoneID
+      Comment: "k8s API"
 
 Outputs:
   ClusterName:
@@ -408,6 +438,6 @@ Outputs:
   ClusterEndpoint:
     Description: 'EKS Cluster endpoint'
     Value: !GetAtt EKSCluster.Endpoint
-  # NLBDNSName:
-  #   Description: 'NLB DNS Name'
-  #   Value: !GetAtt NLB.DNSName
+  NLBDNSName:
+    Description: NLB DNS Name
+    Value: !GetAtt NLB.DNSName
