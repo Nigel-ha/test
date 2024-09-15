@@ -1,1 +1,13 @@
-Resource handler returned message: "Access Denied for bucket: sce-eksv6-logs. Please check S3bucket permission (Service: ElasticLoadBalancingV2, Status Code: 400, Request ID: 97887155-9eeb-4ddb-a6f3-55d261ab3f46)" (RequestToken: 417d7609-4933-9c62-9096-43b18ced9c3c, HandlerErrorCode: InvalidRequest)
+Requested attribute CanonicalHostedZoneId does not exist in schema for AWS::ElasticLoadBalancingV2::LoadBalancer
+
+
+  Route53RecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
+      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt NLB.DNSName
+        HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
+      Comment: "k8s API"
