@@ -15,13 +15,13 @@ Parameters:
     ConstraintDescription: 'CIDR block must be a valid private IP address range with a valid subnet mask.'
   SpokeVpcId:
     Type: AWS::EC2::VPC::Id
-    Description: 'Spoke VPC Id for ALB'
+    Description: 'Spoke VPC Id for NLB'
   SpokeRouteTableId:
     Type: String
     Description: 'Route Table ID of the Spoke VPC'
   SubnetIds:
     Type: CommaDelimitedList
-    Description: 'Comma separated list of subnet IDs in Spoke VPC for ALB'
+    Description: 'Comma separated list of subnet IDs in Spoke VPC for NLB'
   SpokeDomain:
     Type: String
     Description: 'The domain name for the private hosted zone'
@@ -209,11 +209,11 @@ Resources:
         - Key: SCE:owner
           Value: CET
 
-
   S3Bucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "${ClusterName}-alb-logs"
+      BucketName: !Sub "${ClusterName}-logs"
       AccessControl: Private
       BucketEncryption:
         ServerSideEncryptionConfiguration:
@@ -255,8 +255,11 @@ Resources:
             Effect: Allow
             Principal:
               AWS: arn:aws:iam::127311923021:root  # NLB service account for ap-southeast-2
-            Action: "s3:PutObject"
+            Action: s3:PutObject
             Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
           -
             Sid: DeliveryAclCheckNLB
             Effect: Allow
@@ -269,12 +272,12 @@ Resources:
                 aws:SourceAccount: !Ref AWS::AccountId
               ArnLike:
                 aws:SourceArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
-          - Sid: AllowNLBAccessLogs
-            Effect: Allow
-            Principal:
-              Service: network-load-balancer.amazonaws.com
-            Action: s3:PutObject
-            Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
+          # - Sid: AllowNLBAccessLogs
+          #   Effect: Allow
+          #   Principal:
+          #     Service: network-load-balancer.amazonaws.com
+          #   Action: s3:PutObject
+          #   Resource: !Sub "arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*"
           -
             Sid: AWSLogDeliveryWriteNLB
             Effect: Allow
@@ -316,7 +319,7 @@ Resources:
   NLBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${ClusterName}-tg"
+      Name: !Sub "${ClusterName}-nlb-tg"
       Port: 443
       Protocol: TCP
       VpcId: !Ref SpokeVpcId
@@ -331,22 +334,22 @@ Resources:
         - Key: Resource
           Value: CET
 
-  NLBListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref NLB
-      Port: 443
-      Protocol: TCP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref NLBTargetGroup
-      Tags:
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
-        - Key: SCE:owner
-          Value: CET
+  # NLBListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     LoadBalancerArn: !Ref NLB
+  #     Port: 443
+  #     Protocol: TCP
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref NLBTargetGroup
+  #     Tags:
+  #       - Key: StackId
+  #         Value: !Ref AWS::StackId
+  #       - Key: StackName
+  #         Value: !Ref AWS::StackName
+  #       - Key: SCE:owner
+  #         Value: CET
 
   VPCPeeringConnection:
     Type: AWS::EC2::VPCPeeringConnection
@@ -406,16 +409,16 @@ Resources:
               - '"'
       TTL: 60
 
-  Route53RecordA:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
-      Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt NLB.DNSName
-        HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
-      Comment: "k8s API"
+  # Route53RecordA:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     HostedZoneId: !ImportValue SCE-PRIVATE-HOST-ID
+  #     Name: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+  #     Type: A
+  #     AliasTarget:
+  #       DNSName: !GetAtt NLB.DNSName
+  #       HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
+  #     Comment: "k8s API"
 
 Outputs:
   ClusterName:
@@ -427,6 +430,6 @@ Outputs:
   ClusterEndpoint:
     Description: 'EKS Cluster endpoint'
     Value: !GetAtt EKSCluster.Endpoint
-  NLBDNSName:
-    Description: 'NLB DNS Name'
-    Value: !GetAtt NLB.DNSName
+  # NLBDNSName:
+  #   Description: 'NLB DNS Name'
+  #   Value: !GetAtt NLB.DNSName
