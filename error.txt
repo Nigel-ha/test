@@ -1,34 +1,3 @@
-kubectl get configmap aws-auth -n kube-system -o yaml
-
-I0915 17:42:42.012109   13512 cached_discovery.go:120] skipped caching discovery info due to the server has asked for the client to provide credentials
-I0915 17:42:42.012109   13512 round_trippers.go:463] GET https://sce-eksv6-k8s-api.sandpit-apic-gateway.cp4.bcz.gov.au/api?timeout=32s
-I0915 17:42:42.012109   13512 round_trippers.go:469] Request Headers:
-I0915 17:42:42.012109   13512 round_trippers.go:473]     Accept: application/json;g=apidiscovery.k8s.io;v=v2;as=APIGroupDiscoveryList,application/json;g=apidiscovery.k8s.io;v=v2beta1;as=APIGroupDiscoveryList,application/json
-I0915 17:42:42.012109   13512 round_trippers.go:473]     User-Agent: kubectl.exe/v1.31.0 (windows/amd64) kubernetes/9edcffc
-I0915 17:42:42.012109   13512 round_trippers.go:473]     Authorization: Bearer <masked>
-I0915 17:42:42.048519   13512 round_trippers.go:574] Response Status: 401 Unauthorized in 36 milliseconds
-I0915 17:42:42.048519   13512 round_trippers.go:577] Response Headers:
-I0915 17:42:42.048519   13512 round_trippers.go:580]     Audit-Id: 02bcd9a8-7982-4f03-96c1-a1e5fb586895
-I0915 17:42:42.048519   13512 round_trippers.go:580]     Cache-Control: no-cache, private
-I0915 17:42:42.048519   13512 round_trippers.go:580]     Content-Type: application/json
-I0915 17:42:42.048519   13512 round_trippers.go:580]     Content-Length: 129
-I0915 17:42:42.048519   13512 round_trippers.go:580]     Date: Sun, 15 Sep 2024 07:43:29 GMT
-I0915 17:42:42.052312   13512 request.go:1351] Response Body: {"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"Unauthorized","reason":"Unauthorized","code":401}
-E0915 17:42:42.055538   13512 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-I0915 17:42:42.071769   13512 cached_discovery.go:120] skipped caching discovery info due to the server has asked for the client to provide credentials
-I0915 17:42:42.072733   13512 helpers.go:246] server response object: [{
-  "metadata": {},
-  "status": "Failure",
-  "message": "the server has asked for the client to provide credentials",
-  "reason": "Unauthorized",
-  "details": {
-    "causes": [
-      {
-        "reason": "UnexpectedServerResponse",
-        "message": "unknown"
-      }
-    ]
-  },
-  "code": 401
-}]
-error: You must be logged in to the server (the server has asked for the client to provide credentials)
+curl -o kubectl https://amazonaws.com/kubernetes-release/release/`curl -s https://amazonaws.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin/kubectl
