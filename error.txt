@@ -1,3 +1,4 @@
+"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command ". 'D:\agent_work\agent-1\_temp\a142130a-07f2-469b-a87f-111016fd6689.ps1'"
 kubeconfig created at C:\Users\svc-devops_release\.kube\config
 apiVersion: v1
 clusters:
@@ -17,11 +18,11 @@ users:
 - name: eks-user
   user:
     token: REDACTED
-E0915 17:22:54.544416   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0915 17:22:54.639020   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0915 17:22:54.687211   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0915 17:22:54.748849   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
-E0915 17:22:54.813959   22720 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:31:26.737883   20256 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:31:26.802531   20256 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:31:26.864102   20256 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:31:26.949450   20256 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0915 17:31:27.009840   20256 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
 error: You must be logged in to the server (the server has asked for the client to provide credentials)
 ##[error]PowerShell exited with code '1'.
 Finishing: Configure kubeconfig
