@@ -1,3 +1,9 @@
-curl -o kubectl https://amazonaws.com/kubernetes-release/release/`curl -s https://amazonaws.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
-chmod +x ./kubectl
-sudo mv ./kubectl /usr/local/bin/kubectl
+cat <<EOF > /etc/yum.repos.d/eks.repo
+[eks]
+name=Amazon EKS Distro
+baseurl=https://packages.eks.amazonaws.com/yum/repos/kubernetes-x86_64
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.eks.amazonaws.com/yum/doc/yum-key.gpg
+       https://packages.eks.amazonaws.com/yum/doc/rpm-package-key.gpg
+EOF
