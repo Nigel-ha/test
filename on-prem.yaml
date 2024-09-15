@@ -45,25 +45,34 @@ jobs:
           SecretsFilter: 'externalid'
           RunAsPreJob: false
 
-      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
-        displayName: 'Generate EKS Token'
-        name: generate
-        env:
-          externalID: $(externalid)
-        inputs:
-          awsCredentials: ${{ parameters.serviceConnection }}
-          regionName: ap-southeast-2
-          scriptType: inline
-          inlineScript: |
-            . scripts/setup.sh "${{parameters.clusterName}}"
-            token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
-            echo "##vso[task.setvariable variable=eks_token;isOutput=true]$token"
+    - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+      displayName: 'Generate EKS Token and Retrieve Cluster Info'
+      name: generate
+      env:
+        externalID: $(externalid)
+      inputs:
+        awsCredentials: ${{ parameters.serviceConnection }}
+        regionName: ap-southeast-2
+        scriptType: inline
+        inlineScript: |
+          . scripts/setup.sh "${{parameters.clusterName}}"
+          clusterName="${clusterName}"
+          token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+          cluster_ca=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.certificateAuthority.data' --output text)
+          nlb_dns_name=$(aws cloudformation describe-stacks --stack-name "${clusterName}" --query 'Stacks[0].Outputs[?OutputKey==`NLBDNSName`].OutputValue' --output text)
+          echo "##vso[task.setvariable variable=eks_token;isOutput=true]$token"
+          echo "##vso[task.setvariable variable=cluster_ca;isOutput=true]$cluster_ca"
+          echo "##vso[task.setvariable variable=nlb_dns_name;isOutput=true]$nlb_dns_name"
+
 
   - job: onPrem
     displayName: Deploy
     dependsOn: cloud
     variables:
       eks_token: $[ dependencies.cloud.outputs['generate.eks_token'] ]
+      cluster_ca: $[ dependencies.cloud.outputs['generate.cluster_ca'] ]
+      nlb_dns_name: $[ dependencies.cloud.outputs['generate.nlb_dns_name'] ]
+
     pool:
       name: Prod-ReleasePool-Lower
     steps:
@@ -95,72 +104,57 @@ jobs:
 
           # Verify kubectl version
           & kubectl.exe version --client
-  
-    # - task: Bash@3
-    #   displayName: "Setup"
-    #   # env:
-    #   #   eks_token: $(eks_token)
-    #   inputs:
-    #     targetType: "inline"
-    #     script: |
-    #       set +e
-    #       uname -a
-    #       whoami
-    #       ifconfig
-    #       # which kubectl
-    #       # which docker
-    #       # docker version
-    #       echo "TOKEN: $(eks_token)"
+  - task: PowerShell@2
+  displayName: 'Configure kubeconfig'
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Set environment variables
+      $env:eks_token = '$(eks_token)'
+      $env:cluster_ca = '$(cluster_ca)'
+      $env:nlb_dns_name = '$(nlb_dns_name)'
 
-    # - task: Bash@3
-    #   displayName: Kubectl
-    #   inputs:
-    #     targetType: "inline"
-    #     script: |
-    #       podman pull nexus.bcz.gov.au:9444/docker.io/bitnami/kubectl
-    #       podman run --rm bitnami/kubectl version --client
-# curl.exe -LO "https://dl.k8s.io/release/v1.31.0/bin/windows/amd64/kubectl.exe"
-    # - task: PowerShell@2
-    #   displayName: "Try to install"
-    #   inputs:
-    #     targetType: 'inline'
-    #     script: |
-    #       docker
-          # winget install -e --id Kubernetes.kubectl
-          # scoop install kubectl
-          # choco install kubernetes-cli
-          # # Define the version of kubectl to install (replace with specific version if needed)
-          # $kubectlVersion = "v1.31.0"  # You can replace this with any specific version if required
-          # $downloadUrl = "https://dl.k8s.io/release/$kubectlVersion/bin/windows/amd64/kubectl.exe"
+      # Define the kubeconfig path
+      $kubeconfigPath = "$env:USERPROFILE\.kube\config"
 
-          # # Define the destination path for kubectl
-          # $destinationPath = "$env:ProgramFiles\kubectl"
-          # $kubectlExePath = Join-Path $destinationPath "kubectl.exe"
+      # Ensure the .kube directory exists
+      New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kube" | Out-Null
 
-          # # Create the directory if it doesn't exist
-          # if (-not (Test-Path $destinationPath)) {
-          #     New-Item -ItemType Directory -Path $destinationPath
-          # }
+      # Create the kubeconfig content
+      $kubeconfigContent = @"
+apiVersion: v1
+clusters:
+- cluster:
+    server: https://$($env:nlb_dns_name)
+    certificate-authority-data: $($env:cluster_ca)
+  name: eks-cluster
+contexts:
+- context:
+    cluster: eks-cluster
+    user: eks-user
+  name: eks-context
+current-context: eks-context
+kind: Config
+preferences: {}
+users:
+- name: eks-user
+  user:
+    token: $($env:eks_token)
+"@
 
-          # # Download kubectl.exe
-          # Write-Host "Downloading kubectl from $downloadUrl..."
-          # Invoke-WebRequest -Uri $downloadUrl -OutFile $kubectlExePath
+      # Write the kubeconfig content to the file
+      $kubeconfigContent | Out-File -FilePath $kubeconfigPath -Encoding ascii
 
-          # # Add the kubectl directory to the PATH environment variable if not already present
-          # $envPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
-          # if ($envPath -notlike "*$destinationPath*") {
-          #     Write-Host "Adding kubectl to the system PATH..."
-          #     [System.Environment]::SetEnvironmentVariable("Path", $envPath + ";" + $destinationPath, [System.EnvironmentVariableTarget]::Machine)
-          # }
+      Write-Host "kubeconfig created at $kubeconfigPath"
 
-          # Write-Host "kubectl installed successfully at $kubectlExePath"
+      # Verify kubeconfig
+      kubectl config view
 
-    # - task: PowerShell@2
-    #   displayName: "Powershell"
-    #   inputs:
-    #     targetType: 'inline'
-    #     script: |
-    #       Get-NetIPAddress -AddressFamily IPv4
-    #       docker version
-    #       docker info
+      # Test kubectl connectivity
+      kubectl get nodes
+  env:
+    eks_token: $(eks_token)
+    cluster_ca: $(cluster_ca)
+    nlb_dns_name: $(nlb_dns_name)
+
 
