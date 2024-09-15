@@ -466,7 +466,14 @@ EKSClusterSecurityGroup:
         Value: !Ref AWS::StackName
       - Key: SCE:owner
         Value: CET
-
+EKSClusterSecurityGroupSelfIngress:
+  Type: AWS::EC2::SecurityGroupIngress
+  Properties:
+    GroupId: !Ref EKSClusterSecurityGroup
+    IpProtocol: -1
+    FromPort: -1
+    ToPort: -1
+    SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
 Outputs:
   ClusterName:
     Description: 'EKS Cluster name'
