@@ -1,5 +1,10 @@
-+ echo 'Registering new targets...'
-Registering new targets...
-+ aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets '{"Id":"10.6.0.151","Port":443}' '{"Id":"10.6.2.55","Port":443}'
-
-An error occurred (ValidationError) when calling the RegisterTargets operation: The Availability Zone is required for IP address '10.6.0.151' because it is not in the VPC
+10.6.2.55
+443
+ap-southeast-2c
+Unused
+Target is in an Availability Zone that is not enabled for the load balancer
+10.6.0.151
+443
+ap-southeast-2a
+Unhealthy
+Health checks failed
