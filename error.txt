@@ -1,6 +1,5 @@
-========================== Starting Command Output ===========================
-"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command ". 'D:\agent_work\agent-1\_temp\c96361ed-244a-41d0-a7bc-8f1521eb9877.ps1'"
 kubeconfig created at C:\Users\svc-devops_release\.kube\config
+NO_PROXY is set to sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com
 apiVersion: v1
 clusters:
 - cluster:
@@ -19,11 +18,3 @@ users:
 - name: eks-user
   user:
     token: REDACTED
-E0915 16:30:47.792243    9552 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com/api?timeout=32s\": Proxy Authentication Required"
-E0915 16:30:47.816462    9552 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com/api?timeout=32s\": Proxy Authentication Required"
-E0915 16:30:47.838477    9552 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com/api?timeout=32s\": Proxy Authentication Required"
-E0915 16:30:47.860594    9552 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com/api?timeout=32s\": Proxy Authentication Required"
-E0915 16:30:47.882896    9552 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://sce-eksv6-nlb-e187b6ff01a0b709.elb.ap-southeast-2.amazonaws.com/api?timeout=32s\": Proxy Authentication Required"
-Unable to connect to the server: Proxy Authentication Required
-##[error]PowerShell exited with code '1'.
-Finishing: Configure kubeconfig
