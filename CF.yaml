@@ -189,6 +189,8 @@ Resources:
     Properties:
       Name: !Ref ClusterName
       ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref EKSClusterSecurityGroup
         SubnetIds:
           - !Ref Subnet1
           - !Ref Subnet2
@@ -427,6 +429,43 @@ Resources:
         DNSName: !GetAtt NLB.DNSName
         HostedZoneId: !GetAtt NLB.CanonicalHostedZoneID
       Comment: "k8s API"
+      
+EKSClusterSecurityGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties:
+    GroupDescription: EKS Cluster Security Group
+    VpcId: !Ref VPC
+    SecurityGroupIngress:
+      # Allow inbound HTTPS traffic from VpcCidr
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !Ref VpcCidr
+      # Allow inbound HTTPS traffic from Spoke VPC CIDR
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !ImportValue spokeCIDR
+      # Allow all traffic from within the security group itself (for cluster communication)
+      - IpProtocol: -1
+        FromPort: -1
+        ToPort: -1
+        SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+    SecurityGroupEgress:
+      # Allow all outbound traffic
+      - IpProtocol: -1
+        FromPort: -1
+        ToPort: -1
+        CidrIp: '0.0.0.0/0'
+    Tags:
+      - Key: Name
+        Value: !Sub "${ClusterName}-cluster-sg"
+      - Key: StackId
+        Value: !Ref AWS::StackId
+      - Key: StackName
+        Value: !Ref AWS::StackName
+      - Key: SCE:owner
+        Value: CET
 
 Outputs:
   ClusterName:
