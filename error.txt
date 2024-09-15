@@ -11,3 +11,9 @@ Requested attribute CanonicalHostedZoneId does not exist in schema for AWS::Elas
         DNSName: !GetAtt NLB.DNSName
         HostedZoneId: !GetAtt NLB.CanonicalHostedZoneId
       Comment: "k8s API"
+
+
+TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+  --names "${CLUSTER_NAME}-nlb-tg" \
+  --query "TargetGroups[0].TargetGroupArn" \
+  --output text)
