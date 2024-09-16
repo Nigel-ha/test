@@ -1,1 +1,67 @@
-Hello
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS Cluster with CoreDNS, kube-proxy, and VPC CNI Add-ons'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: 'EKS Cluster name (must be lowercase)'
+  VpcCidr:
+    Type: String
+    Default: '10.0.0.0/16'
+    Description: 'CIDR block for the VPC'
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Comma separated list of subnet IDs in the VPC'
+
+Resources:
+
+  # EKS Cluster Resource
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties: 
+      Name: !Ref ClusterName
+      ResourcesVpcConfig:
+        SubnetIds: !Ref SubnetIds
+        EndpointPublicAccess: false
+        EndpointPrivateAccess: true
+
+  # Add CoreDNS Add-on
+  CoreDNSAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: coredns
+      AddonVersion: v1.8.0-eksbuild.1
+      ResolveConflicts: OVERWRITE
+
+  # Add kube-proxy Add-on
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: kube-proxy
+      AddonVersion: v1.20.4-eksbuild.2
+      ResolveConflicts: OVERWRITE
+
+  # Add VPC CNI Add-on
+  VPCAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: vpc-cni
+      AddonVersion: v1.7.5-eksbuild.2
+      ResolveConflicts: OVERWRITE
+
+Outputs:
+  ClusterName:
+    Description: 'EKS Cluster name'
+    Value: !Ref ClusterName
+  CoreDNSAddonStatus:
+    Description: 'CoreDNS Add-on Installation Status'
+    Value: !GetAtt CoreDNSAddon.Status
+  KubeProxyAddonStatus:
+    Description: 'kube-proxy Add-on Installation Status'
+    Value: !GetAtt KubeProxyAddon.Status
+  VPCAddonStatus:
+    Description: 'VPC CNI Add-on Installation Status'
+    Value: !GetAtt VPCAddon.Status
