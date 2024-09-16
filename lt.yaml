@@ -1,0 +1,12 @@
+Resources:
+  NodeGroupLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id}}"
+        InstanceType: t3.medium
+        # Add any other configuration for your ASG like KeyName, SecurityGroupIds, etc.
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            /etc/eks/bootstrap.sh ${ClusterName}
