@@ -12,7 +12,7 @@ VPC_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}
 SECURITY_GROUP_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-SecurityGroupId\`].Value" --output text)
 
 if [[ -z "$CLUSTER_NAME" ]]; then
-  echo "Failed to fetch details" 
+  echo "Failed to fetch details"
   exit 1
 fi
 curl checkip.amazonaws.com
@@ -42,23 +42,28 @@ EOF
 
 echo "Created service account for CoreDNS with IAM role."
 
-# Fetch the current aws-auth ConfigMap
-kubectl get configmap -n kube-system aws-auth -o yaml > aws-auth.yaml
+# Check if aws-auth ConfigMap exists
+if kubectl get configmap -n kube-system aws-auth >/dev/null 2>&1; then
+  # Fetch the current aws-auth ConfigMap
+  kubectl get configmap -n kube-system aws-auth -o yaml > aws-auth.yaml
 
-# Update aws-auth ConfigMap to map the IAM role to the coredns service account
-cat <<EOF >> aws-auth.yaml
+  # Update aws-auth ConfigMap to map the IAM role to the coredns service account
+  cat <<EOF >> aws-auth.yaml
   - groups:
     - system:masters
     rolearn: $CLUSTER_ROLE_ARN
     username: system:node:{{SessionName}}
 EOF
 
-# Apply the updated aws-auth ConfigMap
-kubectl apply -f aws-auth.yaml
+  # Apply the updated aws-auth ConfigMap
+  kubectl apply -f aws-auth.yaml
 
-echo "Updated aws-auth ConfigMap with CoreDNS IAM role."
+  echo "Updated aws-auth ConfigMap with CoreDNS IAM role."
 
-# Clean up
-rm aws-auth.yaml
+  # Clean up
+  rm aws-auth.yaml
+else
+  echo "aws-auth ConfigMap not found. Skipping update."
+fi
 
 echo "All tasks completed successfully."
