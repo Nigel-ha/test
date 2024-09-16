@@ -502,15 +502,35 @@ Outputs:
   ClusterName:
     Description: 'EKS Cluster name'
     Value: !Ref ClusterName
-  ClusterRoleArn:
-    Description: 'EKS Cluster Role ARN'
-    Value: !GetAtt EKSRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
   ClusterEndpoint:
     Description: 'EKS Cluster endpoint'
     Value: !GetAtt EKSCluster.Endpoint
-  NLBDNSName:
-    Description: NLB DNS Name
-    Value: !GetAtt NLB.DNSName
-  NLBAlias:
-    Description: NLB Alias in Route53 private zone.
-    Value: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterEndpoint"
+
+  ClusterRoleArn:
+    Description: 'EKS Cluster Role ARN'
+    Value: !GetAtt EKSRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterRoleArn"
+
+  OIDCProviderArn:
+    Description: 'OIDC Provider ARN'
+    Value: !GetAtt EKSCluster.OpenIdConnectIssuerUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-OIDCProviderArn"
+
+  VPCId:
+    Description: 'VPC ID'
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCId"
+
+  SecurityGroupId:
+    Description: 'EKS Cluster Security Group'
+    Value: !Ref EKSClusterSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-SecurityGroupId"
