@@ -41,7 +41,6 @@ metadata:
 EOF
 
 echo "Created service account for CoreDNS with IAM role."
-
 # Check if aws-auth ConfigMap exists
 if kubectl get configmap -n kube-system aws-auth >/dev/null 2>&1; then
   # Fetch the current aws-auth ConfigMap
@@ -63,7 +62,25 @@ EOF
   # Clean up
   rm aws-auth.yaml
 else
-  echo "aws-auth ConfigMap not found. Skipping update."
+  echo "aws-auth ConfigMap not found. Creating a new aws-auth ConfigMap."
+
+  # Create a new aws-auth ConfigMap if it doesn't exist
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - groups:
+      - system:masters
+      rolearn: $CLUSTER_ROLE_ARN
+      username: system:node:{{SessionName}}
+EOF
+
+  echo "Created aws-auth ConfigMap and added CoreDNS IAM role."
 fi
+
 
 echo "All tasks completed successfully."
