@@ -1,13 +1,59 @@
-Cluster Name: sce-eks-v3
-Cluster Endpoint: https://10750F7967C2436DB2360D034C23B28E.yl4.ap-southeast-2.eks.amazonaws.com
-Cluster Role ARN: arn:aws:iam::707246518798:role/SCE-EKS-v3-EKSRole-3fsEFq9Mucrb
-OIDC Provider ARN: https://oidc.eks.ap-southeast-2.amazonaws.com/id/10750F7967C2436DB2360D034C23B28E
-VPC ID: vpc-042e4e010ba586d8d
-Security Group ID: sg-05f8fc52fb4319cde
-Updated context arn:aws:eks:ap-southeast-2:707246518798:cluster/sce-eks-v3 in /home/cloudshell-user/.kube/config
-serviceaccount/coredns unchanged
-Created service account for CoreDNS with IAM role.
-Error from server (NotFound): configmaps "aws-auth" not found
-error: error validating "aws-auth.yaml": error validating data: invalid object to validate; if you choose to ignore these errors, turn validation off with --validate=false
-Updated aws-auth ConfigMap with CoreDNS IAM role.
-All tasks completed successfully.
+kubectl describe pod coredns-585d4c556b-gzpbz -n kube-system
+Name:                 coredns-585d4c556b-gzpbz
+Namespace:            kube-system
+Priority:             2000000000
+Priority Class Name:  system-cluster-critical
+Service Account:      coredns
+Node:                 <none>
+Labels:               eks.amazonaws.com/component=coredns
+                      k8s-app=kube-dns
+                      pod-template-hash=585d4c556b
+Annotations:          <none>
+Status:               Pending
+IP:                   
+IPs:                  <none>
+Controlled By:        ReplicaSet/coredns-585d4c556b
+Containers:
+  coredns:
+    Image:       602401143452.dkr.ecr.ap-southeast-2.amazonaws.com/eks/coredns:v1.11.1-eksbuild.8
+    Ports:       53/UDP, 53/TCP, 9153/TCP
+    Host Ports:  0/UDP, 0/TCP, 0/TCP
+    Args:
+      -conf
+      /etc/coredns/Corefile
+    Limits:
+      memory:  170Mi
+    Requests:
+      cpu:        100m
+      memory:     70Mi
+    Liveness:     http-get http://:8080/health delay=60s timeout=5s period=10s #success=1 #failure=5
+    Readiness:    http-get http://:8181/ready delay=0s timeout=1s period=10s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /etc/coredns from config-volume (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-j2lbf (ro)
+Conditions:
+  Type           Status
+  PodScheduled   False 
+Volumes:
+  config-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      coredns
+    Optional:  false
+  kube-api-access-j2lbf:
+    Type:                     Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:   3607
+    ConfigMapName:            kube-root-ca.crt
+    ConfigMapOptional:        <nil>
+    DownwardAPI:              true
+QoS Class:                    Burstable
+Node-Selectors:               <none>
+Tolerations:                  CriticalAddonsOnly op=Exists
+                              node-role.kubernetes.io/control-plane:NoSchedule
+                              node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                              node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Topology Spread Constraints:  topology.kubernetes.io/zone:ScheduleAnyway when max skew 1 is exceeded for selector k8s-app=kube-dns
+Events:
+  Type     Reason            Age                    From               Message
+  ----     ------            ----                   ----               -------
+  Warning  FailedScheduling  3m57s (x154 over 29m)  default-scheduler  no nodes available to schedule pods
