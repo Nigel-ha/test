@@ -39,14 +39,22 @@
               - "kms:DescribeKey"
             Resource: "*"
 
-          # Restrict creation of AWS KMS grants to AWS services
-          - Sid: DenyCreateGrantUnlessForAWSService
+          # Deny CreateGrant unless for AWS service
+          - Sid: DenyCreateGrantUnlessAWSService
             Effect: Deny
             Principal: "*"
             Action: "kms:CreateGrant"
             Resource: "*"
             Condition:
-              BoolIfExists:
-                kms:GrantIsForAWSResource: "false"
-              BoolIfExists:
-                aws:PrincipalIsAWSService: "false"
+              StringNotEqualsIfExists:
+                kms:GrantIsForAWSResource: "true"
+
+          # Allow AWS services to create grants for KMS
+          - Sid: AllowCreateGrantForAWSService
+            Effect: Allow
+            Principal: "*"
+            Action: "kms:CreateGrant"
+            Resource: "*"
+            Condition:
+              StringEqualsIfExists:
+                aws:PrincipalIsAWSService: "true"
