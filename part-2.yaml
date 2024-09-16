@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates the IAM Role required for CoreDNS with OIDC integration for Amazon EKS'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: 'EKS Cluster Name'
+    
+  OIDCProviderARN:
+    Type: String
+    Description: 'ARN of the OIDC Provider'
+
+  OIDCProviderURL:
+    Type: String
+    Description: 'URL of the OIDC Provider'
+
+Resources:
+  CoreDNSServiceAccountIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-coredns-iam-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OIDCProviderARN
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                !Sub "${OIDCProviderURL}:sub": "system:serviceaccount:kube-system:coredns"
+      Path: "/"
+      Policies:
+        - PolicyName: !Sub "${ClusterName}-coredns-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeRegions
+                Resource: "*"
+      Tags:
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: Name
+          Value: !Sub "${ClusterName}-coredns-iam-role"
+
+Outputs:
+  CoreDNSIAMRoleArn:
+    Description: 'ARN of the IAM role for CoreDNS'
+    Value: !GetAtt CoreDNSServiceAccountIAMRole.Arn
