@@ -1,2 +1,1 @@
-Your current IAM principal doesn’t have access to Kubernetes objects on this cluster.
-This may be due to the current user or role not having Kubernetes RBAC permissions to describe cluster resources or not having an entry in the cluster’s auth config map.Learn more 
+Requested attribute OIDC.Issuer does not exist in schema for AWS::EKS::Cluster
