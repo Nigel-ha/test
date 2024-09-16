@@ -1,2 +1,1 @@
-Hook status reason
-Hook failed with message: ValidationError [CT.EC2.PR.1]: Require an Amazon EC2 launch template to have IMDSv2 configured [FIX]: Within the 'LaunchTemplateData' property, provide a 'MetadataOptions' configuration and set the value of 'HttpTokens' to 'required'.
+Launching a new EC2 instance: i-08be7a2978e57302e. Status Reason: Instance became unhealthy while waiting for instance to be in InService state. Termination Reason: Client.InvalidKMSKey.InvalidState: The KMS key provided is in an incorrect state
