@@ -18,12 +18,15 @@
       KeyPolicy:
         Version: "2012-10-17"
         Statement:
+          # Allow root access
           - Sid: AllowRootAccess
             Effect: Allow
             Principal:
               AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
             Action: "kms:*"
             Resource: "*"
+
+          # Allow EC2 Role to use the key for encryption/decryption
           - Sid: AllowEC2RoleUseOfTheKey
             Effect: Allow
             Principal:
@@ -36,33 +39,14 @@
               - "kms:DescribeKey"
             Resource: "*"
 
-  NodeKmsKeyAlias:
-    Type: AWS::KMS::Alias
-    Properties:
-      AliasName: !Sub "alias/${ClusterName}-node-kms-key"
-      TargetKeyId: !Ref NodeKmsKey
-
-  # Launch Template with KMS Encryption for EBS Volumes
-  NodeLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateData:
-        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id}}"
-        InstanceType: t3.medium
-        KeyName: !Ref KeyName  # Define your KeyPair if needed for SSH access
-        SecurityGroupIds:
-          - !Ref EKSClusterSecurityGroup
-        MetadataOptions:
-          HttpTokens: required  # Enforce IMDSv2
-          HttpPutResponseHopLimit: 2
-        BlockDeviceMappings:
-          - DeviceName: "/dev/xvda"
-            Ebs:
-              Encrypted: true
-              KmsKeyId: !Ref NodeKmsKey  # Attach KMS key to encrypt the EBS volume
-              VolumeSize: 20  # Size of EBS volume in GiB
-              VolumeType: gp3  # You can use gp3, gp2, io1, etc.
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            /etc/eks/bootstrap.sh ${ClusterName}
+          # Restrict creation of AWS KMS grants to AWS services
+          - Sid: DenyCreateGrantUnlessForAWSService
+            Effect: Deny
+            Principal: "*"
+            Action: "kms:CreateGrant"
+            Resource: "*"
+            Condition:
+              BoolIfExists:
+                kms:GrantIsForAWSResource: "false"
+              BoolIfExists:
+                aws:PrincipalIsAWSService: "false"
