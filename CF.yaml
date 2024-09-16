@@ -184,6 +184,47 @@ Resources:
         - Key: SCE:owner
           Value: CET
 
+  EKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EKS Cluster Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # Allow inbound HTTPS traffic from VpcCidr
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+        # Allow inbound HTTPS traffic from Spoke VPC CIDR
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !ImportValue spokeCIDR
+      SecurityGroupEgress:
+        # Allow all outbound traffic
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-cluster-sg"
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: StackName
+          Value: !Ref AWS::StackName
+        - Key: SCE:owner
+          Value: CET
+
+  EKSClusterSecurityGroupSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EKSClusterSecurityGroup
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -234,7 +275,7 @@ Resources:
               TransitionInDays: 90
             NoncurrentVersionTransitions:
             - StorageClass: GLACIER
-              TransitionInDays: 90              
+              TransitionInDays: 90
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -429,51 +470,34 @@ Resources:
         DNSName: !GetAtt NLB.DNSName
         HostedZoneId: !GetAtt NLB.CanonicalHostedZoneID
       Comment: "k8s API"
-      
-EKSClusterSecurityGroup:
-  Type: AWS::EC2::SecurityGroup
-  Properties:
-    GroupDescription: EKS Cluster Security Group
-    VpcId: !Ref VPC
-    SecurityGroupIngress:
-      # Allow inbound HTTPS traffic from VpcCidr
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !Ref VpcCidr
-      # Allow inbound HTTPS traffic from Spoke VPC CIDR
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !ImportValue spokeCIDR
-      # Allow all traffic from within the security group itself (for cluster communication)
-      - IpProtocol: -1
-        FromPort: -1
-        ToPort: -1
-        SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
-    SecurityGroupEgress:
-      # Allow all outbound traffic
-      - IpProtocol: -1
-        FromPort: -1
-        ToPort: -1
-        CidrIp: '0.0.0.0/0'
-    Tags:
-      - Key: Name
-        Value: !Sub "${ClusterName}-cluster-sg"
-      - Key: StackId
-        Value: !Ref AWS::StackId
-      - Key: StackName
-        Value: !Ref AWS::StackName
-      - Key: SCE:owner
-        Value: CET
-EKSClusterSecurityGroupSelfIngress:
-  Type: AWS::EC2::SecurityGroupIngress
-  Properties:
-    GroupId: !Ref EKSClusterSecurityGroup
-    IpProtocol: -1
-    FromPort: -1
-    ToPort: -1
-    SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+
+  # Add CoreDNS Add-on
+  CoreDNSAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: coredns
+      AddonVersion: v1.11.1-eksbuild.8
+      ResolveConflicts: OVERWRITE
+
+  # Add kube-proxy Add-on
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: kube-proxy
+      AddonVersion: v1.30.0-eksbuild.3
+      ResolveConflicts: OVERWRITE
+
+  # Add VPC CNI Add-on
+  VPCAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: vpc-cni
+      AddonVersion: v1.18.1-eksbuild.3
+      ResolveConflicts: OVERWRITE
+
 Outputs:
   ClusterName:
     Description: 'EKS Cluster name'
@@ -487,3 +511,6 @@ Outputs:
   NLBDNSName:
     Description: NLB DNS Name
     Value: !GetAtt NLB.DNSName
+  NLBAlias:
+    Description: NLB Alias in Route53 private zone.
+    Value: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
