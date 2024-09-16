@@ -5,8 +5,24 @@ Resources:
       LaunchTemplateData:
         ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id}}"
         InstanceType: t3.medium
-        # Add any other configuration for your ASG like KeyName, SecurityGroupIds, etc.
+        KeyName: !Ref KeyName
+        MetadataOptions:
+          HttpTokens: required     # Enforces IMDSv2
+          HttpPutResponseHopLimit: 2
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
             /etc/eks/bootstrap.sh ${ClusterName}
+
+  NodeGroupASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref Subnet1
+        - !Ref Subnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeGroupLaunchTemplate
+        Version: !GetAtt NodeGroupLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 4
+      DesiredCapacity: 2
