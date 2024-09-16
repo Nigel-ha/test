@@ -1,86 +1,55 @@
-Resources:
-  # EKS Cluster without OIDC provider
-  EKSCluster:
-    Type: AWS::EKS::Cluster
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      Name: !Ref ClusterName
-      ResourcesVpcConfig:
-        SubnetIds:
-          - !Ref Subnet1
-          - !Ref Subnet2
-          - !Ref Subnet3
+      LaunchTemplateData:
+        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id}}"  # Automatically get the latest AMI
+        InstanceType: t3.medium
+        KeyName: !Ref KeyName  # Define your KeyPair if needed for SSH access
         SecurityGroupIds:
           - !Ref EKSClusterSecurityGroup
-        EndpointPublicAccess: false
-        EndpointPrivateAccess: true
-      RoleArn: !GetAtt EKSRole.Arn
+        MetadataOptions:
+          HttpTokens: required  # Enforce IMDSv2
+          HttpPutResponseHopLimit: 2
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            /etc/eks/bootstrap.sh ${ClusterName}
 
-  # Lambda Role to fetch OIDC Provider
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaExecutionPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: 
-                  - eks:DescribeCluster
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - iam:CreateOpenIDConnectProvider
-                Resource: '*'
+  NodeGroupASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties: 
+      VPCZoneIdentifier:  # Specify the subnets created in your template
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 4
+      DesiredCapacity: 2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-worker-node"
+          PropagateAtLaunch: true
+        - Key: StackId
+          Value: !Ref AWS::StackId
+          PropagateAtLaunch: true
+        - Key: StackName
+          Value: !Ref AWS::StackName
+          PropagateAtLaunch: true
+      TargetGroupARNs:
+        - !Ref NLBTargetGroup  # Attach the worker nodes to the target group if needed for load balancing
 
-  # Lambda function to fetch OIDC issuer and create provider
-  OIDCProviderLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.9
-      Timeout: 60
-      Code:
-        ZipFile: |
-          import json
-          import boto3
+  # Outputs for NodeGroup Information
+  NodeGroupASGName:
+    Description: 'EKS Node Group Auto Scaling Group Name'
+    Value: !Ref NodeGroupASG
+    Export:
+      Name: !Sub "${AWS::StackName}-NodeGroupASGName"
 
-          def handler(event, context):
-              cluster_name = event['cluster_name']
-              eks_client = boto3.client('eks')
-              iam_client = boto3.client('iam')
-
-              # Describe the EKS Cluster to get the OIDC Issuer URL
-              cluster_info = eks_client.describe_cluster(name=cluster_name)
-              oidc_url = cluster_info['cluster']['identity']['oidc']['issuer']
-              
-              # Create OIDC provider
-              response = iam_client.create_open_id_connect_provider(
-                  Url=oidc_url,
-                  ClientIDList=[
-                      'sts.amazonaws.com'
-                  ],
-                  ThumbprintList=[
-                      '9e99a48a9960b14926bb7f3b02e22da0cedef055'  # Thumbprint
-                  ]
-              )
-              
-              return {
-                  'statusCode': 200,
-                  'body': json.dumps('OIDC provider created')
-              }
-
-  # Invoke the Lambda to create OIDC provider
-  InvokeOIDCProviderLambda:
-    Type: Custom::InvokeLambda
-    Properties:
-      ServiceToken: !GetAtt OIDCProviderLambda.Arn
-      cluster_name: !Ref ClusterName
+  NodeLaunchTemplateId:
+    Description: 'Node Launch Template ID'
+    Value: !Ref NodeLaunchTemplate
+    Export:
+      Name: !Sub "${AWS::StackName}-NodeLaunchTemplateId"
