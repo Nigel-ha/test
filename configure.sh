@@ -11,6 +11,12 @@ OIDC_PROVIDER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${
 VPC_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-VPCId\`].Value" --output text)
 SECURITY_GROUP_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-SecurityGroupId\`].Value" --output text)
 
+if [[ -z "$CLUSTER_NAME" ]]; then
+  echo "Failed to fetch details" 
+  exit 1
+fi
+curl checkip.amazonaws.com
+
 # Print fetched values for debugging
 echo "Cluster Name: $CLUSTER_NAME"
 echo "Cluster Endpoint: $CLUSTER_ENDPOINT"
