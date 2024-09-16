@@ -1,67 +1,58 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Amazon EKS Cluster with CoreDNS, kube-proxy, and VPC CNI Add-ons'
-
-Parameters:
-  ClusterName:
-    Type: String
-    Description: 'EKS Cluster name (must be lowercase)'
-  VpcCidr:
-    Type: String
-    Default: '10.0.0.0/16'
-    Description: 'CIDR block for the VPC'
-  SubnetIds:
-    Type: CommaDelimitedList
-    Description: 'Comma separated list of subnet IDs in the VPC'
-
+OIDCProvider:
+  Type: "AWS::IAM::OIDCProvider"
+  Properties: 
+    Url: !GetAtt EKSCluster.OIDC.Issuer
+    ClientIdList: 
+      - "sts.amazonaws.com"
+    ThumbprintList: 
+      - "9e99a48a9960b14926bb7f3b02e22da0cedef055" # Common AWS OIDC thumbprint
 Resources:
-
-  # EKS Cluster Resource
   EKSCluster:
     Type: AWS::EKS::Cluster
-    Properties: 
+    Properties:
       Name: !Ref ClusterName
       ResourcesVpcConfig:
-        SubnetIds: !Ref SubnetIds
-        EndpointPublicAccess: false
-        EndpointPrivateAccess: true
+        SecurityGroupIds:
+          - !Ref EKSClusterSecurityGroup
+        SubnetIds:
+          - !Ref Subnet1
+          - !Ref Subnet2
+          - !Ref Subnet3
+      RoleArn: !GetAtt EKSRole.Arn
 
-  # Add CoreDNS Add-on
-  CoreDNSAddon:
-    Type: AWS::EKS::Addon
+  GetOIDCProviderFunction:
+    Type: AWS::Lambda::Function
     Properties:
-      ClusterName: !Ref EKSCluster
-      AddonName: coredns
-      AddonVersion: v1.8.0-eksbuild.1
-      ResolveConflicts: OVERWRITE
+      Code:
+        ZipFile: |
+          import json
+          import boto3
 
-  # Add kube-proxy Add-on
-  KubeProxyAddon:
-    Type: AWS::EKS::Addon
-    Properties:
-      ClusterName: !Ref EKSCluster
-      AddonName: kube-proxy
-      AddonVersion: v1.20.4-eksbuild.2
-      ResolveConflicts: OVERWRITE
+          def handler(event, context):
+              eks = boto3.client('eks')
+              cluster_name = event['ClusterName']
+              response = eks.describe_cluster(name=cluster_name)
+              return {'OidcIssuer': response['cluster']['identity']['oidc']['issuer']}
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
 
-  # Add VPC CNI Add-on
-  VPCAddon:
-    Type: AWS::EKS::Addon
+  CustomOIDCProvider:
+    Type: Custom::GetOIDCProvider
     Properties:
-      ClusterName: !Ref EKSCluster
-      AddonName: vpc-cni
-      AddonVersion: v1.7.5-eksbuild.2
-      ResolveConflicts: OVERWRITE
+      ServiceToken: !GetAtt GetOIDCProviderFunction.Arn
+      ClusterName: !Ref ClusterName
+
+  OIDCProvider:
+    Type: "AWS::IAM::OIDCProvider"
+    Properties: 
+      Url: !GetAtt CustomOIDCProvider.OidcIssuer
+      ClientIdList: 
+        - "sts.amazonaws.com"
+      ThumbprintList: 
+        - "<OIDC_PROVIDER_THUMBPRINT>"
 
 Outputs:
-  ClusterName:
-    Description: 'EKS Cluster name'
-    Value: !Ref ClusterName
-  CoreDNSAddonStatus:
-    Description: 'CoreDNS Add-on Installation Status'
-    Value: !GetAtt CoreDNSAddon.Status
-  KubeProxyAddonStatus:
-    Description: 'kube-proxy Add-on Installation Status'
-    Value: !GetAtt KubeProxyAddon.Status
-  VPCAddonStatus:
-    Description: 'VPC CNI Add-on Installation Status'
-    Value: !GetAtt VPCAddon.Status
+  OIDCProviderURL:
+    Description: OIDC Provider URL
+    Value: !GetAtt CustomOIDCProvider.OidcIssuer
