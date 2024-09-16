@@ -1,0 +1,90 @@
+Resources:
+
+  # Existing resources (your VPC, subnets, etc.) remain unchanged.
+
+  # Add SSM interface endpoint
+  VPCEndpointSSM:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssm"
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      SecurityGroupIds:
+        - !Ref EKSClusterSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-ssm-vpc-endpoint"
+
+  # Add SSM Messages interface endpoint
+  VPCEndpointSSMMessages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssmmessages"
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      SecurityGroupIds:
+        - !Ref EKSClusterSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-ssmmessages-vpc-endpoint"
+
+  # Add EC2 Messages interface endpoint
+  VPCEndpointEC2Messages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2messages"
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      SecurityGroupIds:
+        - !Ref EKSClusterSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-ec2messages-vpc-endpoint"
+
+  # (Optional) Add CloudWatch Logs endpoint (for SSM logging to CloudWatch)
+  VPCEndpointCloudWatchLogs:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.logs"
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      SecurityGroupIds:
+        - !Ref EKSClusterSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-logs-vpc-endpoint"
+
+  # Add S3 Gateway Endpoint (S3 uses Gateway VPC Endpoint)
+  VPCEndpointS3:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcId: !Ref VPC
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref RouteTable1
+        - !Ref RouteTable2
+        - !Ref RouteTable3
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-s3-gateway-endpoint"
