@@ -1,5 +1,16 @@
-# Directly embed the token into the kubeconfig without using a variable
-python -c 'import sys, yaml, json; config=yaml.safe_load(sys.stdin); config["users"][0]["user"]={"token": "'$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)'"}; yaml.safe_dump(config, sys.stdout, default_flow_style=False)' < kubeconfig > kubeconfig_modified
+# Define the path to the kubeconfig file
+$kubeconfigPath = "$env:USERPROFILE\.kube\config"
 
-# Replace the original kubeconfig file
-mv kubeconfig_modified kubeconfig
+# Check if the kubeconfig file contains "***"
+if (Test-Path $kubeconfigPath) {
+    # Search for the string "***" in the file
+    $containsMaskedData = Select-String -Path $kubeconfigPath -Pattern "\*\*\*" -Quiet
+
+    if ($containsMaskedData) {
+        Write-Host "The kubeconfig file contains masked data (***)."
+    } else {
+        Write-Host "The kubeconfig file does not contain masked data (***)."
+    }
+} else {
+    Write-Host "The kubeconfig file does not exist at: $kubeconfigPath"
+}
