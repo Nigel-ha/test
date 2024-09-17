@@ -40,10 +40,17 @@
           # Generate token
           token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
 
-          # Modify kubeconfig to embed the token
-          # Using sed to replace the exec section
-          sed -i '/    exec:/,$d' kubeconfig
-          echo "    token: ${token}" >> kubeconfig
+          # Convert kubeconfig from YAML to JSON
+          python -c 'import sys, yaml, json; json.dump(yaml.safe_load(sys.stdin), sys.stdout)' < kubeconfig > kubeconfig.json
+
+          # Use jq to replace the exec section with the token
+          jq --arg token "$token" '.users[0].user = { "token": $token }' kubeconfig.json > kubeconfig_modified.json
+
+          # Convert the modified JSON back to YAML
+          python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < kubeconfig_modified.json > kubeconfig_modified
+
+          # Replace the original kubeconfig file
+          mv kubeconfig_modified kubeconfig
 
           # Verify kubeconfig (do not display sensitive data)
           kubectl config view --flatten --minify
