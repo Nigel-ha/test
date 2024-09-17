@@ -1,66 +1,137 @@
-- job: cloud
-  displayName: Generate kubeconfig with token
-  pool:
-    name: prod-cloudpool-nix
-  steps:
-    - checkout: self
-    - checkout: commonScripts
-    - task: Bash@3
-      displayName: "Install"
-      inputs:
-        targetType: "inline"
-        script: |
-          # Existing setup commands
-          # ...
+Starting: Test
+==============================================================================
+Task         : PowerShell
+Description  : Run a PowerShell script on Linux, macOS, or Windows
+Version      : 2.245.1
+Author       : Microsoft Corporation
+Help         : https://docs.microsoft.com/azure/devops/pipelines/tasks/utility/powershell
+==============================================================================
+Generating script.
+========================== Starting Command Output ===========================
+"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command ". 'D:\agent_work\agent-1\_temp\0f967dd2-458b-46ee-b7c8-487a70d77035.ps1'"
+kubeconfigSource: D:\agent_work\agent-1\2291\kubeconfig
+kubeconfigTarget: C:\Users\svc-devops_release\.kube\config
+kubeconfig copied to C:\Users\svc-devops_release\.kube\config
+NO_PROXY is set to nexus.bcz.gov.au,PDCWPDVIS13,10.210.193.15,bcz.gov.au,immi.gov.au,immi.local,3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+EKS Domain: 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+NLB IP Address: 172.19.45.19
+Hosts file already contains the required entry.
+D:\agent_work\agent-1\_temp\0f967dd2-458b-46ee-b7c8-487a70d77035.ps1 : SSL/TLS handshake failed: Exception calling 
+"AuthenticateAsClient" with "1" argument(s): "A call to SSPI failed, see inner exception."
+At line:1 char:1
++ . 'D:\agent_work\agent-1\_temp\0f967dd2-458b-46ee-b7c8-487a70d77035.p ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,0f967dd2-458b-46ee-b7c8-487a70d77035.p 
+   s1
+ 
+##[error]PowerShell exited with code '1'.
+Finishing: Test
 
-    - task: AzureKeyVault@2
-      displayName: 'Get ExternalID from KeyVault'
-      inputs:
-        azureSubscription: 'AKV Cloud Engineering Secret Reader'
-        KeyVaultName: 'kv-bcz-cet'
-        SecretsFilter: 'externalid'
-        RunAsPreJob: false
 
-    - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
-      displayName: 'Generate kubeconfig with embedded token and Publish Artifact'
+
+
+    - task: PowerShell@2
+      displayName: 'Test'
       env:
-        externalID: $(externalid)
+        eks_domain: $(eks_domain)
       inputs:
-        awsCredentials: ${{ parameters.serviceConnection }}
-        regionName: ap-southeast-2
-        scriptType: inline
-        inlineScript: |
-          #!/bin/bash
-          set -e
-          . scripts/setup.sh "${{parameters.clusterName}}"
+        targetType: 'inline'
+        script: |
+            # Define the EKS domain (replace with your actual EKS API endpoint)
 
-          # Generate kubeconfig file
-          aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
+            $env:eks_domain = '$(eks_domain)'
 
-          # Generate token
-          token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
+            # Define the kubeconfig source and target paths
+            $kubeconfigSource = Join-Path -Path "$(Pipeline.Workspace)" -ChildPath "kubeconfig"
+            $kubeconfigTarget = "$env:USERPROFILE\.kube\config"
 
-          # Convert kubeconfig from YAML to JSON
-          python -c 'import sys, yaml, json; json.dump(yaml.safe_load(sys.stdin), sys.stdout)' < kubeconfig > kubeconfig.json
+            Write-Host "kubeconfigSource: $kubeconfigSource"
+            Write-Host "kubeconfigTarget: $kubeconfigTarget"
 
-          # Use jq to replace the exec section with the token
-          jq --arg token "$token" '.users[0].user = { "token": $token }' kubeconfig.json > kubeconfig_modified.json
+            # Ensure the source file exists
+            if (-Not (Test-Path $kubeconfigSource)) {
+                Write-Error "kubeconfig file not found at $kubeconfigSource"
+                exit 1
+            }
 
-          # Convert the modified JSON back to YAML
-          python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < kubeconfig_modified.json > kubeconfig_modified
+            # Ensure the .kube directory exists
+            New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kube" | Out-Null
 
-          # Replace the original kubeconfig file
-          mv kubeconfig_modified kubeconfig
+            # Copy the kubeconfig file to the .kube directory
+            Copy-Item -Path $kubeconfigSource -Destination $kubeconfigTarget -Force
 
-          # Verify kubeconfig (do not display sensitive data)
-          kubectl config view --flatten --minify
+            Write-Host "kubeconfig copied to $kubeconfigTarget"
 
-          # Copy kubeconfig to artifact staging directory
-          mkdir -p $(Build.ArtifactStagingDirectory)
-          cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
+            # Set NO_PROXY environment variable
+            if ($env:NO_PROXY) {
+              $env:NO_PROXY = $env:NO_PROXY + ",$env:eks_domain"
+            } else {
+              $env:NO_PROXY = $env:eks_domain
+            }
+            Write-Host "NO_PROXY is set to $env:NO_PROXY"
 
-    - task: PublishPipelineArtifact@1
-      displayName: 'Publish kubeconfig Artifact'
-      inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)'
-        artifact: 'kubeconfig-artifact'
+            # Resolve the EKS domain to the NLB IP address
+            try {
+                $NLB_IP = [System.Net.Dns]::GetHostAddresses($env:eks_domain) | Select-Object -First 1 | ForEach-Object { $_.IPAddressToString }
+            } catch {
+                Write-Error "Failed to resolve EKS domain to IP address."
+                exit 1
+            }
+
+            if (-Not $NLB_IP) {
+                Write-Error "Failed to get IP address for EKS domain."
+                exit 1
+            }
+
+            Write-Host "EKS Domain: $env:eks_domain"
+            Write-Host "NLB IP Address: $NLB_IP"
+
+            # Update the Windows Hosts File
+            $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
+            $HostsEntry = "$NLB_IP`t$env:eks_domain"
+
+            # Check if entry already exists
+            if ((Get-Content -Path $HostsFile -ErrorAction Stop) -contains $HostsEntry) {
+                Write-Host "Hosts file already contains the required entry."
+            } else {
+                # Add the entry to the hosts file
+                Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
+                Write-Host "Hosts file updated successfully."
+            }
+
+            # Remove 'https://' if present
+            $env:eks_domain = $env:eks_domain -replace '^https://', ''
+
+            # Create a TCP client to connect to the EKS API endpoint on port 443
+            $tcpClient = New-Object System.Net.Sockets.TcpClient($env:eks_domain, 443)
+
+            # Create an SSL stream for the TCP connection
+            $sslStream = New-Object System.Net.Security.SslStream($tcpClient.GetStream(), $false, ({ $true }))
+
+            try {
+                # Authenticate as a client without using any client certificates
+                $sslStream.AuthenticateAsClient($env:eks_domain)
+
+                # Get the remote certificate presented by the server
+                $cert = $sslStream.RemoteCertificate
+                $cert2 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $cert
+
+                # Display certificate information
+                Write-Host "Certificate Subject: $($cert2.Subject)"
+                Write-Host "Certificate Issuer: $($cert2.Issuer)"
+                Write-Host "Certificate Valid From: $($cert2.NotBefore)"
+                Write-Host "Certificate Valid To: $($cert2.NotAfter)"
+                Write-Host "Thumbprint: $($cert2.Thumbprint)"
+
+                # Optionally, export the certificate to a file for further inspection
+                $certPath = "$env:TEMP\eks_server_cert.cer"
+                [System.IO.File]::WriteAllBytes($certPath, $cert2.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+                Write-Host "Certificate saved to: $certPath"
+            } catch {
+                Write-Error "SSL/TLS handshake failed: $_"
+            } finally {
+                # Close the SSL stream and TCP client
+                $sslStream.Close()
+                $tcpClient.Close()
+            }
