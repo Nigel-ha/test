@@ -1,55 +1,178 @@
-  NodeLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateData:
-        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id}}"  # Automatically get the latest AMI
-        InstanceType: t3.medium
-        KeyName: !Ref KeyName  # Define your KeyPair if needed for SSH access
-        SecurityGroupIds:
-          - !Ref EKSClusterSecurityGroup
-        MetadataOptions:
-          HttpTokens: required  # Enforce IMDSv2
-          HttpPutResponseHopLimit: 2
-        UserData:
-          Fn::Base64: !Sub |
+parameters:
+  - name: clusterName
+    displayName: Cluster Name
+    type: string
+  - name: serviceConnection
+    displayName: Service connection to use
+    type: string
+
+jobs:
+  - job: cloud
+    displayName: Generate EKS kubeconfig
+    pool:
+      name: prod-cloudpool-nix
+    steps:
+      - checkout: self
+      - checkout: commonScripts
+      - task: Bash@3
+        displayName: "Install"
+        inputs:
+          targetType: "inline"
+        script: |
+          mv SCE-EKS/* .
+          rm -rf SCE-EKS
+
+          uname -a
+          whoami
+
+          mkdir -p keys
+          mkdir -p scripts
+          mkdir -p CF
+          mv SCE-Common/keys/* keys/
+          mv SCE-Common/scripts/*.* scripts/
+          rm -rf SCE-Common
+
+          chmod u+x scripts/*.sh
+          scripts/aws-cli.sh
+
+      - task: AzureKeyVault@2
+        displayName: 'Get ExternalID from KeyVault'
+        inputs:
+          azureSubscription: 'AKV Cloud Engineering Secret Reader'
+          KeyVaultName: 'kv-bcz-cet'
+          SecretsFilter: 'externalid'
+          RunAsPreJob: false
+
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate kubeconfig and Publish Artifact'
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
             #!/bin/bash
-            /etc/eks/bootstrap.sh ${ClusterName}
+            set -e
+            . scripts/setup.sh "${{parameters.clusterName}}"
 
-  NodeGroupASG:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties: 
-      VPCZoneIdentifier:  # Specify the subnets created in your template
-        - !Ref Subnet1
-        - !Ref Subnet2
-        - !Ref Subnet3
-      LaunchTemplate:
-        LaunchTemplateId: !Ref NodeLaunchTemplate
-        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
-      MinSize: 2
-      MaxSize: 4
-      DesiredCapacity: 2
-      Tags:
-        - Key: Name
-          Value: !Sub "${ClusterName}-worker-node"
-          PropagateAtLaunch: true
-        - Key: StackId
-          Value: !Ref AWS::StackId
-          PropagateAtLaunch: true
-        - Key: StackName
-          Value: !Ref AWS::StackName
-          PropagateAtLaunch: true
-      TargetGroupARNs:
-        - !Ref NLBTargetGroup  # Attach the worker nodes to the target group if needed for load balancing
+            # Generate a clean kubeconfig file
+            export KUBECONFIG=$(pwd)/kubeconfig
+            aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig $KUBECONFIG --alias eks-cluster --verbose
 
-  # Outputs for NodeGroup Information
-  NodeGroupASGName:
-    Description: 'EKS Node Group Auto Scaling Group Name'
-    Value: !Ref NodeGroupASG
-    Export:
-      Name: !Sub "${AWS::StackName}-NodeGroupASGName"
+            # Verify kubeconfig
+            kubectl config view
 
-  NodeLaunchTemplateId:
-    Description: 'Node Launch Template ID'
-    Value: !Ref NodeLaunchTemplate
-    Export:
-      Name: !Sub "${AWS::StackName}-NodeLaunchTemplateId"
+            # Package the kubeconfig file as an artifact
+            mkdir -p $(Build.ArtifactStagingDirectory)
+            cp $KUBECONFIG $(Build.ArtifactStagingDirectory)/kubeconfig
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish kubeconfig Artifact'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)/kubeconfig'
+          artifact: 'kubeconfig'
+
+  - job: onPrem
+    displayName: Deploy
+    dependsOn: cloud
+    pool:
+      name: Prod-ReleasePool-Lower
+    steps:
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download kubeconfig Artifact'
+        inputs:
+          artifactName: 'kubeconfig'
+          targetPath: '$(Pipeline.Workspace)'
+
+      - task: PowerShell@2
+        displayName: 'Install kubectl'
+        inputs:
+          targetType: 'inline'
+          script: |
+            # Variables
+            $kubectlUrl = "https://nexus.bcz.gov.au/repository/raw-thirdparty/kubenetes/kubectl/v1.31.0/kubectl.exe"
+            $destinationPath = "$(Build.ArtifactStagingDirectory)\kubectl.exe"  # Destination to save kubectl
+
+            # Log the download information
+            Write-Host "Downloading kubectl from Nexus: $kubectlUrl"
+
+            # Download the file
+            Invoke-WebRequest -Uri $kubectlUrl -OutFile $destinationPath
+
+            # Check if the file exists
+            if (Test-Path $destinationPath) {
+              Write-Host "kubectl downloaded successfully to $destinationPath"
+            } else {
+              Write-Host "Failed to download kubectl."
+              exit 1
+            }
+
+            # Add the directory to PATH
+            $env:PATH += ";$(Build.ArtifactStagingDirectory)"
+
+            # Verify kubectl version
+            & kubectl.exe version --client
+
+      - task: PowerShell@2
+        displayName: 'Configure kubeconfig'
+        inputs:
+          targetType: 'inline'
+          script: |
+            # Define the kubeconfig path
+            $kubeconfigSource = "$(Pipeline.Workspace)\kubeconfig"
+            $kubeconfigTarget = "$env:USERPROFILE\.kube\config"
+
+            # Ensure the .kube directory exists
+            New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kube" | Out-Null
+
+            # Copy the kubeconfig file
+            Copy-Item -Path $kubeconfigSource -Destination $kubeconfigTarget -Force
+
+            Write-Host "kubeconfig copied to $kubeconfigTarget"
+
+            # Set NO_PROXY environment variable
+            $eks_domain = (kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | ForEach-Object { $_ -replace 'https://', '' })
+            if ($env:NO_PROXY) {
+                $env:NO_PROXY = $env:NO_PROXY + ",$eks_domain"
+            } else {
+                $env:NO_PROXY = $eks_domain
+            }
+            Write-Host "NO_PROXY is set to $env:NO_PROXY"
+
+            # Resolve the EKS domain to the NLB IP address
+            $nlb_alias = $eks_domain
+            try {
+              $NLB_IP = [System.Net.Dns]::GetHostAddresses($nlb_alias) | Select-Object -First 1 | ForEach-Object { $_.IPAddressToString }
+            } catch {
+              Write-Error "Failed to resolve NLB alias to IP address."
+              exit 1
+            }
+
+            if (-not $NLB_IP) {
+              Write-Error "Failed to get IP address for NLB alias."
+              exit 1
+            }
+
+            Write-Host "NLB IP Address: $NLB_IP"
+            Write-Host "EKS Domain: $eks_domain"
+
+            # Update the Windows Hosts File
+            $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
+            $HostsEntry = "$NLB_IP`t$eks_domain"
+
+            # Check if entry already exists
+            $HostsContent = Get-Content -Path $HostsFile -ErrorAction Stop
+            if ($HostsContent -contains $HostsEntry) {
+                Write-Host "Hosts file already contains the required entry."
+            } else {
+                # Add the entry to the hosts file
+                Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
+                Write-Host "Hosts file updated successfully."
+            }
+
+            # Verify kubeconfig
+            kubectl config view
+
+            # Test kubectl connectivity
+            kubectl get nodes
