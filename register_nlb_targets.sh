@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 # Variables
 CLUSTER_NAME=$1
 AWS_REGION=${2:-ap-southeast-2}  # Default region set to ap-southeast-2 if not provided
@@ -92,21 +95,18 @@ if [ "$SPOKE_SUBNET_A" != "None" ] && [ -n "$SPOKE_SUBNET_A" ]; then
 fi
 if [ "$SPOKE_SUBNET_B" != "None" ] && [ -n "$SPOKE_SUBNET_B" ]; then
   if [ -n "$SUBNET_IDS" ]; then
-    SUBNET_IDS+=" $SPOKE_SUBNET_B"  # Comma-separated
+    SUBNET_IDS+=" $SPOKE_SUBNET_B"  # Space-separated
   else
     SUBNET_IDS+="$SPOKE_SUBNET_B"
   fi
 fi
 if [ "$SPOKE_SUBNET_C" != "None" ] && [ -n "$SPOKE_SUBNET_C" ]; then
   if [ -n "$SUBNET_IDS" ]; then
-    SUBNET_IDS+=" $SPOKE_SUBNET_C"  # Comma-separated
+    SUBNET_IDS+=" $SPOKE_SUBNET_C"  # Space-separated
   else
     SUBNET_IDS+="$SPOKE_SUBNET_C"
   fi
 fi
-
-# Strip any accidental spaces
-# SUBNET_IDS=$(echo "$SUBNET_IDS" | tr -d '[:space:]')
 
 if [ -z "$SUBNET_IDS" ]; then
   echo "No valid subnets found from CloudFormation exports. Exiting."
@@ -143,14 +143,34 @@ else
   ENDPOINT_ID=$EXISTING_ENDPOINT
 fi
 
-# Get the private IP addresses of the endpoint network interfaces
-IP_ADDRESSES=$(aws ec2 describe-network-interfaces \
-  --filters "Name=vpc-endpoint-id,Values=$ENDPOINT_ID" \
-  --query "NetworkInterfaces[].PrivateIpAddress" \
+# Get the network interface IDs associated with the endpoint
+NETWORK_INTERFACE_IDS=$(aws ec2 describe-vpc-endpoints \
+  --vpc-endpoint-ids "$ENDPOINT_ID" \
+  --region "$AWS_REGION" \
+  --query "VpcEndpoints[0].NetworkInterfaceIds[]" \
   --output text)
 
+if [ -z "$NETWORK_INTERFACE_IDS" ]; then
+  echo "Failed to retrieve network interfaces for VPC Endpoint $ENDPOINT_ID"
+  exit 1
+fi
+
+# Get the private IP addresses of the network interfaces
+IP_ADDRESSES=""
+for NI_ID in $NETWORK_INTERFACE_IDS; do
+  IP_ADDRESS=$(aws ec2 describe-network-interfaces \
+    --network-interface-ids "$NI_ID" \
+    --region "$AWS_REGION" \
+    --query "NetworkInterfaces[0].PrivateIpAddress" \
+    --output text)
+  
+  if [ -n "$IP_ADDRESS" ]; then
+    IP_ADDRESSES+="$IP_ADDRESS "
+  fi
+done
+
 if [ -z "$IP_ADDRESSES" ]; then
-  echo "Failed to retrieve IP addresses for the VPC Endpoint $ENDPOINT_ID"
+  echo "Failed to retrieve IP addresses for the network interfaces of the VPC Endpoint $ENDPOINT_ID"
   exit 1
 fi
 
