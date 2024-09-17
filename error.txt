@@ -1,56 +1,66 @@
-# Remove 'https://' if present
-$env:eks_domain = $env:eks_domain -replace '^https://', ''
-Write-Host "Connecting to EKS domain: $env:eks_domain"
+Starting: Test
+==============================================================================
+Task         : PowerShell
+Description  : Run a PowerShell script on Linux, macOS, or Windows
+Version      : 2.245.1
+Author       : Microsoft Corporation
+Help         : https://docs.microsoft.com/azure/devops/pipelines/tasks/utility/powershell
+==============================================================================
+Generating script.
+========================== Starting Command Output ===========================
+"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command ". 'D:\agent_work\agent-1\_temp\64912a46-a51f-4486-bffa-0b70e86b7344.ps1'"
+kubeconfigSource: D:\agent_work\agent-1\2291\kubeconfig
+kubeconfigTarget: C:\Users\svc-devops_release\.kube\config
+kubeconfig copied to C:\Users\svc-devops_release\.kube\config
+NO_PROXY is set to nexus.bcz.gov.au,PDCWPDVIS13,10.210.193.15,bcz.gov.au,immi.gov.au,immi.local,3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+EKS Domain: 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+NLB IP Address: 172.19.45.19
+Hosts file already contains the required entry.
+Connecting to EKS domain: 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+Creating TCP client to 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com on port 443
+TCP client created successfully
+SSL stream created successfully
+Using SSL/TLS Protocols: Tls12
+SSL authentication succeeded
+Certificate Subject: CN=kube-apiserver
+Certificate Issuer: CN=kubernetes
+Certificate Valid From: 09/14/2024 19:12:02
+Certificate Valid To: 09/15/2025 15:24:33
+Thumbprint: 03D14504CFB0C8E34E336160CEC29057BA872330
+Certificate saved to: C:\Users\svc-devops_release\AppData\Local\Temp\eks_server_cert.cer
+Finishing: Test
 
-try {
-    # Create a TCP client to connect to the EKS API endpoint on port 443
-    Write-Host "Creating TCP client to $env:eks_domain on port 443"
-    $tcpClient = New-Object System.Net.Sockets.TcpClient($env:eks_domain, 443)
-    Write-Host "TCP client created successfully"
-} catch {
-    Write-Error "Failed to connect to $env:eks_domain on port 443: $_"
-    exit 1
-}
 
-# Create an SSL stream for the TCP connection
-try {
-    $sslStream = New-Object System.Net.Security.SslStream($tcpClient.GetStream(), $false, { $true })
-    Write-Host "SSL stream created successfully"
-} catch {
-    Write-Error "Failed to create SSL stream: $_"
-    $tcpClient.Close()
-    exit 1
-}
 
-try {
-    # Authenticate as a client without using any client certificates
-    $sslProtocols = [System.Security.Authentication.SslProtocols]::Tls12
-    Write-Host "Using SSL/TLS Protocols: $sslProtocols"
-    $sslStream.AuthenticateAsClient($env:eks_domain, $null, $sslProtocols, $false)
-    Write-Host "SSL authentication succeeded"
-
-    # Get the remote certificate presented by the server
-    $cert = $sslStream.RemoteCertificate
-    $cert2 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $cert
-
-    # Display certificate information
-    Write-Host "Certificate Subject: $($cert2.Subject)"
-    Write-Host "Certificate Issuer: $($cert2.Issuer)"
-    Write-Host "Certificate Valid From: $($cert2.NotBefore)"
-    Write-Host "Certificate Valid To: $($cert2.NotAfter)"
-    Write-Host "Thumbprint: $($cert2.Thumbprint)"
-
-    # Optionally, export the certificate to a file for further inspection
-    $certPath = "$env:TEMP\eks_server_cert.cer"
-    [System.IO.File]::WriteAllBytes($certPath, $cert2.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-    Write-Host "Certificate saved to: $certPath"
-} catch {
-    Write-Error "SSL/TLS handshake failed: $($_.Exception.Message)"
-    if ($_.Exception.InnerException) {
-        Write-Error "Inner Exception: $($_.Exception.InnerException.Message)"
-    }
-} finally {
-    # Close the SSL stream and TCP client
-    $sslStream.Close()
-    $tcpClient.Close()
-}
+kubeconfigTarget: C:\Users\svc-devops_release\.kube\config
+kubeconfig copied to C:\Users\svc-devops_release\.kube\config
+NO_PROXY is set to nexus.bcz.gov.au,PDCWPDVIS13,10.210.193.15,bcz.gov.au,immi.gov.au,immi.local,3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+EKS Domain: 
+NLB IP Address: 10.210.11.82
+Hosts file already contains the required entry.
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+  name: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+contexts:
+- context:
+    cluster: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+    user: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+  name: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+current-context: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+kind: Config
+preferences: {}
+users:
+- name: arn:aws:eks:ap-southeast-2:155324581823:cluster/sce-eksv6
+  user:
+    token: REDACTED
+E0917 17:59:01.568161   23908 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0917 17:59:01.631553   23908 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0917 17:59:01.731919   23908 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0917 17:59:01.891123   23908 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+E0917 17:59:01.956399   23908 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: the server has asked for the client to provide credentials"
+error: You must be logged in to the server (the server has asked for the client to provide credentials)
+##[error]PowerShell exited with code '1'.
+Finishing: Configure kubeconfig
