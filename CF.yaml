@@ -64,6 +64,8 @@ Resources:
           Value: !Ref AWS::StackName
         - Key: SCE:owner
           Value: CET
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: shared
 
   Subnet2:
     Type: AWS::EC2::Subnet
@@ -81,6 +83,8 @@ Resources:
           Value: !Ref AWS::StackName
         - Key: SCE:owner
           Value: CET
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: shared
 
   Subnet3:
     Type: AWS::EC2::Subnet
@@ -98,6 +102,8 @@ Resources:
           Value: !Ref AWS::StackName
         - Key: SCE:owner
           Value: CET
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: shared
 
   RouteTable1:
     Type: AWS::EC2::RouteTable
@@ -394,13 +400,13 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NLBTargetGroup
-      Tags:
-        - Key: StackId
-          Value: !Ref AWS::StackId
-        - Key: StackName
-          Value: !Ref AWS::StackName
-        - Key: SCE:owner
-          Value: CET
+      # Tags:
+      #   - Key: StackId
+      #     Value: !Ref AWS::StackId
+      #   - Key: StackName
+      #     Value: !Ref AWS::StackName
+      #   - Key: SCE:owner
+      #     Value: CET
 
   VPCPeeringConnection:
     Type: AWS::EC2::VPCPeeringConnection
@@ -497,6 +503,157 @@ Resources:
       AddonName: vpc-cni
       AddonVersion: v1.18.1-eksbuild.3
       ResolveConflicts: OVERWRITE
+###################################
+## Nodes
+###################################
+  # Node IAM Role
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-node-role"
+
+  # Instance Profile for Worker Nodes
+  NodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref NodeInstanceRole
+
+  NodeGroupLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2/recommended/image_id}}"
+        InstanceType: t3.medium
+        # KeyName: sce-cmk
+        MetadataOptions:
+          HttpTokens: required     # Enforces IMDSv2
+          HttpPutResponseHopLimit: 1
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              Encrypted: true
+              # KmsKeyId: !Ref NodeKmsKey  # Attach KMS key to encrypt the EBS volume
+              VolumeSize: 20  # Size of EBS volume in GiB
+              VolumeType: gp3  # You can use gp3, gp2, io1, etc.
+        # Add any other configuration for your ASG like KeyName, SecurityGroupIds, etc.
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            /etc/eks/bootstrap.sh ${ClusterName}
+
+  # KMS Key for EC2 EBS Volume Encryption
+  # NodeKmsKey:
+  #   Type: AWS::KMS::Key
+  #   Properties:
+  #     Description: "KMS Key for EKS Worker Node EBS Volume Encryption"
+  #     KeyUsage: ENCRYPT_DECRYPT
+  #     EnableKeyRotation: true
+  #     PendingWindowInDays: 7
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${ClusterName}-node-kms-key"
+  #       - Key: StackId
+  #         Value: !Ref AWS::StackId
+  #       - Key: StackName
+  #         Value: !Ref AWS::StackName
+  #       - Key: SCE:owner
+  #         Value: CET
+  #     KeyPolicy:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         # Allow root access
+  #         - Sid: AllowRootAccess
+  #           Effect: Allow
+  #           Principal:
+  #             AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+  #           Action: "kms:*"
+  #           Resource: "*"
+
+  #         # Allow EC2 Role to use the key for encryption/decryption
+  #         - Sid: AllowEC2RoleUseOfTheKey
+  #           Effect: Allow
+  #           Principal:
+  #             AWS: !GetAtt EKSRole.Arn
+  #           Action:
+  #             - "kms:Encrypt"
+  #             - "kms:Decrypt"
+  #             - "kms:ReEncrypt*"
+  #             - "kms:GenerateDataKey*"
+  #             - "kms:DescribeKey"
+  #           Resource: "*"
+  #         -
+  #           Effect: Deny
+  #           Principal: "*"
+  #           Action: "kms:CreateGrant"
+  #           Resource: "*"
+  #           Condition:
+  #             BoolIfExists:
+  #               kms:GrantIsForAWSResource: false
+  #               aws:PrincipalIsAWSService: false
+          # Deny CreateGrant unless for AWS service
+          # - Sid: DenyCreateGrantUnlessAWSService
+          #   Effect: Deny
+          #   Principal: "*"
+          #   Action: "kms:CreateGrant"
+          #   Resource: "*"
+          #   Condition:
+          #     StringNotEqualsIfExists:
+          #       kms:GrantIsForAWSResource: "true"
+
+          # # Allow AWS services to create grants for KMS
+          # - Sid: AllowCreateGrantForAWSService
+          #   Effect: Allow
+          #   Principal: "*"
+          #   Action: "kms:CreateGrant"
+          #   Resource: "*"
+          #   Condition:
+          #     StringEqualsIfExists:
+          #       aws:PrincipalIsAWSService: "true"
+
+  # NodeKmsKeyAlias:
+  #   Type: AWS::KMS::Alias
+  #   Properties:
+  #     AliasName: !Sub "alias/${ClusterName}-node-kms-key"
+  #     TargetKeyId: !Ref NodeKmsKey
+
+  # Auto Scaling Group for Worker Nodes
+  NodeGroupASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:  # Specify the subnets created in your template
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeGroupLaunchTemplate
+        Version: !GetAtt NodeGroupLaunchTemplate.LatestVersionNumber
+      MinSize: 0
+      MaxSize: 4
+      DesiredCapacity: 0
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-worker-node"
+          PropagateAtLaunch: true
+        - Key: StackId
+          Value: !Ref AWS::StackId
+          PropagateAtLaunch: true
+        - Key: StackName
+          Value: !Ref AWS::StackName
+          PropagateAtLaunch: true
 
 Outputs:
   ClusterName:
@@ -534,3 +691,15 @@ Outputs:
     Value: !Ref EKSClusterSecurityGroup
     Export:
       Name: !Sub "${AWS::StackName}-SecurityGroupId"
+
+  NodeInstanceRoleArn:
+    Description: 'ARN of the node instance role'
+    Value: !GetAtt NodeInstanceRole.Arn
+
+  NLBDNSName:
+    Description: NLB DNS Name
+    Value: !GetAtt NLB.DNSName
+
+  NLBAlias:
+    Description: NLB Alias in Route53 private zone.
+    Value: !Sub "${ClusterName}-k8s-api.${SpokeDomain}"
