@@ -1,32 +1,221 @@
-trigger:
-  branches:
-    include:
-      - '*'
-
-resources:
-  repositories:
-  - repository: commonScripts
-    type: git
-    name: CloudEngineering/SCE-Common
-    ref: main
-
 parameters:
   - name: clusterName
     displayName: Cluster Name
     type: string
-    default: '-'
-    values:
-      - "-"
-      - LC-spoke
-      - Sandpit-APIC-Gateway
+  - name: serviceConnection
+    displayName: Service connection to use
+    type: string
 
-stages:
+jobs:
+  - job: cloud
+    displayName: Generate EKS access token
+    pool:
+      name: prod-cloudpool-nix
+    steps:
+      - checkout: self
+      - checkout: commonScripts
+      - task: Bash@3
+        displayName: "Install"
+        inputs:
+          targetType: "inline"
+          script: |
+            mv SCE-EKS/* .
+            rm -rf SCE-EKS
 
-  - stage: Deploy
-    condition: not(eq('${{parameters.clusterName}}', '-'))
-    dependsOn: []
-    jobs:
-    - template: template-on-prem.yml
-      parameters:
-        clusterName: ${{ parameters.clusterName }}
-        serviceConnection: sce-automationaccount-assumeall
+            uname -a
+            whoami
+            # which kubectl
+
+            mkdir -p keys
+            mkdir -p scripts
+            mkdir -p CF
+            mv SCE-Common/keys/* keys/
+            mv SCE-Common/scripts/*.* scripts/
+            # mv SCE-Common/CF/product CF/
+            rm -rf SCE-Common
+
+            chmod u+x scripts/*.sh
+            scripts/aws-cli.sh
+
+      - task: AzureKeyVault@2
+        displayName: 'Get ExternalID from KeyVault'
+        inputs:
+          azureSubscription: 'AKV Cloud Engineering Secret Reader'
+          KeyVaultName: 'kv-bcz-cet'
+          SecretsFilter: 'externalid'
+          RunAsPreJob: false
+
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate EKS Token and Retrieve Cluster Info'
+        name: generate
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
+            . scripts/setup.sh "${{parameters.clusterName}}"
+            #clusterName="${clusterName}"
+            token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+            cluster_ca=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.certificateAuthority.data' --output text)
+            nlb_alias=$(aws cloudformation describe-stacks --stack-name "${stackName}" --query 'Stacks[0].Outputs[?OutputKey==`NLBAlias`].OutputValue' --output text)
+            if [[ -z "$nlb_alias" ]]; then 
+              echo "No NLBAlias export found for ${stackName}"
+              exit 1
+            fi
+
+            echo "##vso[task.setvariable variable=eks_token;isOutput=true;issecret=true]$token"
+            echo "##vso[task.setvariable variable=cluster_ca;isOutput=true]$cluster_ca"
+            echo "##vso[task.setvariable variable=nlb_alias;isOutput=true]$nlb_alias"
+
+  - job: onPrem
+    displayName: Deploy
+    dependsOn: cloud
+    variables:
+      eks_token: $[ dependencies.cloud.outputs['generate.eks_token'] ]
+      cluster_ca: $[ dependencies.cloud.outputs['generate.cluster_ca'] ]
+      nlb_alias: $[ dependencies.cloud.outputs['generate.nlb_alias'] ]
+
+    pool:
+      name: Prod-ReleasePool-Lower
+    steps:
+    - task: PowerShell@2
+      displayName: 'Install kubectl'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Variables
+          $kubectlUrl = "https://nexus.bcz.gov.au/repository/raw-thirdparty/kubenetes/kubectl/v1.31.0/kubectl.exe"
+          $destinationPath = "$(Build.ArtifactStagingDirectory)\kubectl.exe"  # Destination to save kubectl
+
+          # Log the download information
+          Write-Host "Downloading kubectl from Nexus: $kubectlUrl"
+          
+          # Download the file
+          Invoke-WebRequest -Uri $kubectlUrl -OutFile $destinationPath
+
+          # Check if the file exists
+          if (Test-Path $destinationPath) {
+            Write-Host "kubectl downloaded successfully to $destinationPath"
+          } else {
+            Write-Host "Failed to download kubectl."
+            exit 1
+          }
+
+          # Add the directory to PATH
+          $env:PATH += ";$(Build.ArtifactStagingDirectory)"
+
+          # Verify kubectl version
+          & kubectl.exe version --client
+
+    - task: PowerShell@2
+      displayName: 'Update Windows Hosts File with EKS Domain and NLB IP'
+      env:
+        nlb_alias: $(nlb_alias)
+      inputs:
+        targetType: 'inline'
+        script: |
+         
+          try {
+            $NLB_IP = [System.Net.Dns]::GetHostAddresses($nlb_alias) | Select-Object -First 1 | ForEach-Object { $_.IPAddressToString }
+          } catch {
+            Write-Error "Failed to resolve NLB alias to IP address."
+            exit 1
+          }
+
+          if (-not $NLB_IP) {
+            Write-Error "Failed to get IP address for NLB alias."
+            exit 1
+          }
+
+          Write-Host "NLB IP Address: $NLB_IP"
+
+          # Update the Windows Hosts File
+          $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
+          $HostsEntry = "$NLB_IP`t$EKS_Domain"
+
+          # Check if entry already exists
+          $HostsContent = Get-Content -Path $HostsFile -ErrorAction Stop
+          if ($HostsContent -contains $HostsEntry) {
+              Write-Host "Hosts file already contains the required entry."
+          } else {
+              # Add the entry to the hosts file
+              Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
+              Write-Host "Hosts file updated successfully."
+          }
+      # Run the script with administrative privileges
+      # This option is available only for self-hosted agents
+      # For Microsoft-hosted agents, this step will fail due to lack of permissions
+      errorActionPreference: 'stop'
+      pwsh: true
+      continueOnError: false
+      # Ensure the agent runs with sufficient privileges
+      # You might need to configure the agent to run as an administrator
+
+    - task: PowerShell@2
+      displayName: 'Configure kubeconfig'
+      env:
+        eks_token: $(eks_token)
+        cluster_ca: $(cluster_ca)
+        nlb_alias: $(nlb_alias)
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Set environment variables
+          $env:eks_token = '$(eks_token)'
+          $env:cluster_ca = '$(cluster_ca)'
+          $env:nlb_alias = '$(nlb_alias)'
+
+          # Define the kubeconfig path
+          $kubeconfigPath = "$env:USERPROFILE\.kube\config"
+
+          # Ensure the .kube directory exists
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kube" | Out-Null
+
+          # Create the kubeconfig content
+          $kubeconfigContent = @"
+          apiVersion: v1
+          clusters:
+          - cluster:
+              server: https://$($env:nlb_alias)
+              #certificate-authority-data: $($env:cluster_ca)
+              insecure-skip-tls-verify: true
+            name: eks-cluster
+          contexts:
+          - context:
+              cluster: eks-cluster
+              user: eks-user
+            name: eks-context
+          current-context: eks-context
+          kind: Config
+          preferences: {}
+          users:
+          - name: eks-user
+            user:
+              token: $($env:eks_token)
+          "@
+
+          #cat $HOME/.kube/config
+
+          # Write the kubeconfig content to the file
+          $kubeconfigContent | Out-File -FilePath $kubeconfigPath -Encoding ascii
+
+          Write-Host "kubeconfig created at $kubeconfigPath"
+          
+          # $env:NO_PROXY = $env:nlb_alias
+          # Write-Host "NO_PROXY is set to $env:NO_PROXY"
+
+          # Add the directory to PATH
+          $env:PATH += ";$(Build.ArtifactStagingDirectory)"
+          Write-Host "CHECK AUTH start"
+          kubectl get configmap aws-auth -n kube-system -o yaml
+          Write-Host "CHECK AUTH end"
+
+          # Verify kubeconfig
+          kubectl config view
+
+          # Test kubectl connectivity
+          kubectl get nodes --v=8 
+
+
