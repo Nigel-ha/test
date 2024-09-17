@@ -1,19 +1,9 @@
-Starting: NEW:Configure kubeconfig
-==============================================================================
-Task         : PowerShell
-Description  : Run a PowerShell script on Linux, macOS, or Windows
-Version      : 2.245.1
-Author       : Microsoft Corporation
-Help         : https://docs.microsoft.com/azure/devops/pipelines/tasks/utility/powershell
-==============================================================================
-Generating script.
-========================== Starting Command Output ===========================
-"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command ". 'D:\agent_work\agent-1\_temp\0f9eee4c-58b8-41c5-8b4b-b1fc61bab4e1.ps1'"
-Copy-Item : Cannot find path 'D:\agent_work\agent-1\1194\kubeconfig' because it does not exist.
-At D:\agent_work\agent-1\_temp\0f9eee4c-58b8-41c5-8b4b-b1fc61bab4e1.ps1:12 char:1
-+ Copy-Item -Path $kubeconfigSource -Destination $kubeconfigTarget -For ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (D:\agent_work\agent-1\1194\kubeconfig:String) [Copy-Item], ItemNotFound 
-   Exception
-    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.CopyItemCommand
- 
+  provideClusterInfo: false
+E0917 15:16:58.157245   19088 memcache.go:265] "Unhandled Error" err=<
+	couldn't get current server API group list: Get "https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s": getting credentials: exec: executable aws not found
+	
+	It looks like you are trying to use a client-go credential plugin that is not installed.
+	
+	To learn more about this feature, consult the documentation available at:
+	      https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins
+ >
