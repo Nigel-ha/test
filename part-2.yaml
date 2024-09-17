@@ -29,6 +29,7 @@ Resources:
               - sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
+                # OIDC URL subject should match service account in kube-system namespace
                 "${OIDCProviderURL}:sub": "system:serviceaccount:kube-system:coredns"
       Path: "/"
       Policies:
@@ -38,14 +39,23 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  # Logging permissions for CoreDNS
                   - logs:CreateLogStream
                   - logs:CreateLogGroup
                   - logs:PutLogEvents
                 Resource: "*"
               - Effect: Allow
                 Action:
+                  # Describe EC2 instances for Kubernetes nodes and regions
                   - ec2:DescribeInstances
                   - ec2:DescribeRegions
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  # Route53 permissions (add these for DNS functionality if needed)
+                  - route53:ListHostedZones
+                  - route53:ListResourceRecordSets
+                  - route53:GetChange
                 Resource: "*"
       Tags:
         - Key: ClusterName
