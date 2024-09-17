@@ -29,7 +29,7 @@ Resources:
               - sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                !Sub "${OIDCProviderURL}:sub": "system:serviceaccount:kube-system:coredns"
+                "${OIDCProviderURL}:sub": "system:serviceaccount:kube-system:coredns"
       Path: "/"
       Policies:
         - PolicyName: !Sub "${ClusterName}-coredns-policy"
