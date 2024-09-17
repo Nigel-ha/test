@@ -1,3 +1,6 @@
+Failed to retrieve IP addresses for the VPC Endpoint vpce-048a2928e83871d43
+[cloudshell-user@ip-10-134-53-134 ~]$ vi run.sh 
+[cloudshell-user@ip-10-134-53-134 ~]$ ./run.sh 
 Using VPC ID: vpc-0fddb50783cc68a26
 Security group sce-eksv6-sg already exists with ID: sg-0f59db161eb49303e
 Using subnets: subnet-058d84cdba8f89f6a subnet-09578a088987a4259
@@ -5,4 +8,3 @@ EKS API VPC endpoint already exists: vpce-048a2928e83871d43
 
 An error occurred (InvalidParameterValue) when calling the DescribeNetworkInterfaces operation: The filter 'vpc-endpoint-id' is invalid
 Failed to retrieve IP addresses for the VPC Endpoint vpce-048a2928e83871d43
-[cloudshell-user@ip-10-134-53-134 ~]$ 
