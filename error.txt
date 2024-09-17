@@ -10,21 +10,8 @@
       inputs:
         targetType: "inline"
         script: |
-          mv SCE-EKS/* .
-          rm -rf SCE-EKS
-
-          uname -a
-          whoami
-
-          mkdir -p keys
-          mkdir -p scripts
-          mkdir -p CF
-          mv SCE-Common/keys/* keys/
-          mv SCE-Common/scripts/*.* scripts/
-          rm -rf SCE-Common
-
-          chmod u+x scripts/*.sh
-          scripts/aws-cli.sh
+          # Existing setup commands
+          # ...
 
     - task: AzureKeyVault@2
       displayName: 'Get ExternalID from KeyVault'
@@ -47,37 +34,18 @@
           set -e
           . scripts/setup.sh "${{parameters.clusterName}}"
 
-          # Fetch cluster details
-          cluster_endpoint=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.endpoint' --output text)
-          cluster_ca=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.certificateAuthority.data' --output text)
+          # Generate kubeconfig file
+          aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
 
-          # Generate token with default expiration (15 minutes)
-          token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+          # Generate token
+          token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
 
-          # Create kubeconfig with embedded token
-          cat <<EOF > kubeconfig
-apiVersion: v1
-clusters:
-- cluster:
-    server: ${cluster_endpoint}
-    certificate-authority-data: ${cluster_ca}
-  name: eks-cluster
-contexts:
-- context:
-    cluster: eks-cluster
-    user: eks-user
-  name: eks-context
-current-context: eks-context
-kind: Config
-preferences: {}
-users:
-- name: eks-user
-  user:
-    token: ${token}
-EOF
+          # Modify kubeconfig to embed the token
+          # Using sed to replace the exec section
+          sed -i '/    exec:/,$d' kubeconfig
+          echo "    token: ${token}" >> kubeconfig
 
-          # Avoid logging the kubeconfig content to prevent leaking the token
-          # Verify kubeconfig without displaying sensitive data
+          # Verify kubeconfig (do not display sensitive data)
           kubectl config view --flatten --minify
 
           # Copy kubeconfig to artifact staging directory
