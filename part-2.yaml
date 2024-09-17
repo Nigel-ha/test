@@ -67,3 +67,6 @@ Outputs:
   CoreDNSIAMRoleArn:
     Description: 'ARN of the IAM role for CoreDNS'
     Value: !GetAtt CoreDNSServiceAccountIAMRole.Arn
+    Export:
+      Name: !Sub "${ClusterName}-CoreDNSIAMRoleArn"
+
