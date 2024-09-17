@@ -1,0 +1,95 @@
+trigger:
+  branches:
+    include:
+      - '*'
+
+resources:
+  repositories:
+  - repository: commonScripts
+    type: git
+    name: CloudEngineering/SCE-Common
+    ref: main
+
+parameters:
+  - name: clusterName
+    displayName: Cluster Name
+    type: string
+    default: '-'
+    values:
+      - "-"
+      - LC-spoke
+      - Sandpit-APIC-Gateway
+
+stages:
+  - stage: Deploy
+    condition: not(eq('${{parameters.clusterName}}', '-'))
+    jobs:
+      - job: UpdateHostsFile
+        displayName: Update Windows Hosts File
+        steps:
+          - task: PowerShell@2
+            displayName: 'Update Windows Hosts File with EKS Domain and NLB IP'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Retrieve the EKS Cluster Endpoint URL
+                $ClusterName = "${{ parameters.clusterName }}"
+                $Region = "ap-southeast-2"
+
+                $EKS_Endpoint = (aws eks describe-cluster --name $ClusterName --region $Region --query "cluster.endpoint" --output text)
+                if (-not $EKS_Endpoint) {
+                    Write-Error "Failed to retrieve EKS cluster endpoint."
+                    exit 1
+                }
+
+                # Extract the domain name from the endpoint URL
+                $EKS_Domain = ($EKS_Endpoint -replace "^https://", "") -replace ":.*", ""
+                Write-Host "EKS Domain: $EKS_Domain"
+
+                # Resolve the NLB Alias to an IP Address
+                $NLB_Alias = "<Your-NLB-Alias>"  # Replace with your actual NLB alias
+
+                try {
+                    $NLB_IP = [System.Net.Dns]::GetHostAddresses($NLB_Alias) | Select-Object -First 1 | ForEach-Object { $_.IPAddressToString }
+                } catch {
+                    Write-Error "Failed to resolve NLB alias to IP address."
+                    exit 1
+                }
+
+                if (-not $NLB_IP) {
+                    Write-Error "Failed to get IP address for NLB alias."
+                    exit 1
+                }
+
+                Write-Host "NLB IP Address: $NLB_IP"
+
+                # Update the Windows Hosts File
+                $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
+                $HostsEntry = "$NLB_IP`t$EKS_Domain"
+
+                # Check if entry already exists
+                $HostsContent = Get-Content -Path $HostsFile -ErrorAction Stop
+                if ($HostsContent -contains $HostsEntry) {
+                    Write-Host "Hosts file already contains the required entry."
+                } else {
+                    # Add the entry to the hosts file
+                    Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
+                    Write-Host "Hosts file updated successfully."
+                }
+            # Run the script with administrative privileges
+            # This option is available only for self-hosted agents
+            # For Microsoft-hosted agents, this step will fail due to lack of permissions
+            errorActionPreference: 'stop'
+            pwsh: true
+            continueOnError: false
+            # Ensure the agent runs with sufficient privileges
+            # You might need to configure the agent to run as an administrator
+
+      - job: DeployApplication
+        displayName: Deploy Application
+        dependsOn: UpdateHostsFile
+        steps:
+          - script: |
+              # Your kubectl commands here
+              kubectl get nodes
+            displayName: 'Run kubectl commands'
