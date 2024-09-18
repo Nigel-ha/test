@@ -1,2 +1,31 @@
-I0918 13:31:18.906364   21032 loader.go:395] Config loaded from file:  C:\Users\svc-devops_release\.kube\config
-error: specifying a root certificates file with the insecure flag is not allowed
++ '[' -z arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a ']'
++ echo 'Found Target Group ARN: arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a'
+Found Target Group ARN: arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a
++ TARGETS_ARGS=()
++ declare -a TARGETS_ARGS
++ for IP in $IP_ADDRESSES
+++ aws ec2 describe-network-interfaces --network-interface-ids eni-0025b7eb0e9492afb --region ap-southeast-2 --query 'NetworkInterfaces[0].AvailabilityZone' --output text
++ AZ=ap-southeast-2a
++ '[' -z ap-southeast-2a ']'
++ '[' ap-southeast-2a == None ']'
++ echo 'Found IP 172.19.45.189 in AZ ap-southeast-2a'
+Found IP 172.19.45.189 in AZ ap-southeast-2a
++ TARGET_ARG=Id=172.19.45.189,Port=443,AvailabilityZone=ap-southeast-2a
++ TARGETS_ARGS+=("$TARGET_ARG")
++ for IP in $IP_ADDRESSES
+++ aws ec2 describe-network-interfaces --network-interface-ids eni-0025b7eb0e9492afb --region ap-southeast-2 --query 'NetworkInterfaces[0].AvailabilityZone' --output text
++ AZ=ap-southeast-2a
++ '[' -z ap-southeast-2a ']'
++ '[' ap-southeast-2a == None ']'
++ echo 'Found IP 172.19.45.43 in AZ ap-southeast-2a'
+Found IP 172.19.45.43 in AZ ap-southeast-2a
++ TARGET_ARG=Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
++ TARGETS_ARGS+=("$TARGET_ARG")
+++ aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --query 'TargetHealthDescriptions[].Target' --output json
++ EXISTING_TARGETS='[]'
++ '[' '[]' '!=' '[]' ']'
++ echo 'Registering new targets...'
+Registering new targets...
++ aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets Id=172.19.45.189,Port=443,AvailabilityZone=ap-southeast-2a Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
+
+An error occurred (ValidationError) when calling the RegisterTargets operation: The IP address '172.19.45.189' is within the VPC, and cannot have its Availability Zone overridden to 'ap-southeast-2a' from 'ap-southeast-2b'
