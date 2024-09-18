@@ -1,53 +1,32 @@
-+ '[' -n subnet-09578a088987a4259 ']'
-+ '[' -n subnet-058d84cdba8f89f6a ']'
-+ SUBNET_IDS+=' subnet-09578a088987a4259'
-+ '[' None '!=' None ']'
-+ '[' -z 'subnet-058d84cdba8f89f6a subnet-09578a088987a4259' ']'
-+ echo 'Using subnets: subnet-058d84cdba8f89f6a subnet-09578a088987a4259'
-Using subnets: subnet-058d84cdba8f89f6a subnet-09578a088987a4259
-+ ENDPOINT_SERVICE_NAME=com.amazonaws.ap-southeast-2.eks
-++ aws ec2 describe-vpc-endpoints --region ap-southeast-2 --filters Name=vpc-id,Values=vpc-0fddb50783cc68a26 Name=service-name,Values=com.amazonaws.ap-southeast-2.eks --query 'VpcEndpoints[?VpcEndpointType=='\''Interface'\''].[VpcEndpointId]' --output text
-+ EXISTING_ENDPOINT=vpce-048a2928e83871d43
-+ '[' -z vpce-048a2928e83871d43 ']'
-+ echo 'EKS API VPC endpoint already exists: vpce-048a2928e83871d43'
-EKS API VPC endpoint already exists: vpce-048a2928e83871d43
-+ ENDPOINT_ID=vpce-048a2928e83871d43
-++ aws ec2 describe-vpc-endpoints --vpc-endpoint-ids vpce-048a2928e83871d43 --region ap-southeast-2 --query 'VpcEndpoints[0].NetworkInterfaceIds[]' --output text
-+ NETWORK_INTERFACE_IDS='eni-0d2593a9b1f2391fd  eni-0025b7eb0e9492afb'
-+ '[' -z 'eni-0d2593a9b1f2391fd eni-0025b7eb0e9492afb' ']'
-+ IP_ADDRESSES=
-+ for NI_ID in $NETWORK_INTERFACE_IDS
-++ aws ec2 describe-network-interfaces --network-interface-ids eni-0d2593a9b1f2391fd --region ap-southeast-2 --query 'NetworkInterfaces[0].PrivateIpAddress' --output text
-+ IP_ADDRESS=172.19.45.189
-+ '[' -n 172.19.45.189 ']'
-+ IP_ADDRESSES+='172.19.45.189 '
-+ for NI_ID in $NETWORK_INTERFACE_IDS
-++ aws ec2 describe-network-interfaces --network-interface-ids eni-0025b7eb0e9492afb --region ap-southeast-2 --query 'NetworkInterfaces[0].PrivateIpAddress' --output text
-+ IP_ADDRESS=172.19.45.43
-+ '[' -n 172.19.45.43 ']'
-+ IP_ADDRESSES+='172.19.45.43 '
-+ '[' -z '172.19.45.189 172.19.45.43 ' ']'
-+ TARGETS_ARGS=()
-+ declare -a TARGETS_ARGS
-+ for IP in $IP_ADDRESSES
-++ aws ec2 describe-network-interfaces --network-interface-ids eni-0025b7eb0e9492afb --region ap-southeast-2 --query 'NetworkInterfaces[0].AvailabilityZone' --output text
-+ AZ=ap-southeast-2a
-+ '[' -z ap-southeast-2a ']'
-+ '[' ap-southeast-2a == None ']'
-+ echo 'Found IP 172.19.45.189 in AZ ap-southeast-2a'
-Found IP 172.19.45.189 in AZ ap-southeast-2a
-+ TARGET_ARG=Id=172.19.45.189,Port=443,AvailabilityZone=ap-southeast-2a
-+ TARGETS_ARGS+=("$TARGET_ARG")
-+ for IP in $IP_ADDRESSES
-++ aws ec2 describe-network-interfaces --network-interface-ids eni-0025b7eb0e9492afb --region ap-southeast-2 --query 'NetworkInterfaces[0].AvailabilityZone' --output text
-+ AZ=ap-southeast-2a
-+ '[' -z ap-southeast-2a ']'
-+ '[' ap-southeast-2a == None ']'
-+ echo 'Found IP 172.19.45.43 in AZ ap-southeast-2a'
 Found IP 172.19.45.43 in AZ ap-southeast-2a
 + TARGET_ARG=Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
 + TARGETS_ARGS+=("$TARGET_ARG")
-++ aws elbv2 describe-target-health --target-group-arn '' --query 'TargetHealthDescriptions[].Target' --output json
+++ aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --query 'TargetHealthDescriptions[].Target' --output json
++ EXISTING_TARGETS='[
+    {
+        "Id": "172.19.45.43",
+        "Port": 443,
+        "AvailabilityZone": "ap-southeast-2a"
+    }
+]'
++ '[' '[
+    {
+        "Id": "172.19.45.43",
+        "Port": 443,
+        "AvailabilityZone": "ap-southeast-2a"
+    }
+]' '!=' '[]' ']'
++ echo 'Deregistering existing targets...'
+Deregistering existing targets...
++ aws elbv2 deregister-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets '[
+    {
+        "Id": "172.19.45.43",
+        "Port": 443,
+        "AvailabilityZone": "ap-southeast-2a"
+    }
+]'
++ echo 'Registering new targets...'
+Registering new targets...
++ aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets Id=172.19.45.189,Port=443,AvailabilityZone=ap-southeast-2a Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
 
-An error occurred (ValidationError) when calling the DescribeTargetHealth operation: A target group ARN must be specified
-+ EXISTING_TARGETS=
+An error occurred (ValidationError) when calling the RegisterTargets operation: The IP address '172.19.45.189' is within the VPC, and cannot have its Availability Zone overridden to 'ap-southeast-2a' from 'ap-southeast-2b'
