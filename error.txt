@@ -1,32 +1,7 @@
-Found IP 172.19.45.43 in AZ ap-southeast-2a
-+ TARGET_ARG=Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
-+ TARGETS_ARGS+=("$TARGET_ARG")
-++ aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --query 'TargetHealthDescriptions[].Target' --output json
-+ EXISTING_TARGETS='[
-    {
-        "Id": "172.19.45.43",
-        "Port": 443,
-        "AvailabilityZone": "ap-southeast-2a"
-    }
-]'
-+ '[' '[
-    {
-        "Id": "172.19.45.43",
-        "Port": 443,
-        "AvailabilityZone": "ap-southeast-2a"
-    }
-]' '!=' '[]' ']'
-+ echo 'Deregistering existing targets...'
-Deregistering existing targets...
-+ aws elbv2 deregister-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets '[
-    {
-        "Id": "172.19.45.43",
-        "Port": 443,
-        "AvailabilityZone": "ap-southeast-2a"
-    }
-]'
-+ echo 'Registering new targets...'
-Registering new targets...
-+ aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:ap-southeast-2:155324581823:targetgroup/sce-eksv6-nlb-tg/167b95f5f5aa625a --targets Id=172.19.45.189,Port=443,AvailabilityZone=ap-southeast-2a Id=172.19.45.43,Port=443,AvailabilityZone=ap-southeast-2a
-
-An error occurred (ValidationError) when calling the RegisterTargets operation: The IP address '172.19.45.189' is within the VPC, and cannot have its Availability Zone overridden to 'ap-southeast-2a' from 'ap-southeast-2b'
+I0918 10:29:04.653843    7088 round_trippers.go:574] Response Status:  in 24 milliseconds
+I0918 10:29:04.653843    7088 round_trippers.go:577] Response Headers:
+E0918 10:29:04.653843    7088 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s\": tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com"
+I0918 10:29:04.670137    7088 cached_discovery.go:120] skipped caching discovery info due to Get "https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s": tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+I0918 10:29:04.670137    7088 helpers.go:264] Connection error: Get https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s: tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+Unable to connect to the server: tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
+##[error]PowerShell exited with code '1'.
