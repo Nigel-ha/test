@@ -40,7 +40,6 @@ if [ "$SECURITY_GROUP_ID" == "None" ] || [ -z "$SECURITY_GROUP_ID" ]; then
     --region "$AWS_REGION" \
     --query 'GroupId' --output text)
 
-  # Check if the security group was created successfully
   if [ -z "$SECURITY_GROUP_ID" ]; then
     echo "Failed to create security group for $CLUSTER_NAME. Exiting."
     exit 1
@@ -49,29 +48,10 @@ if [ "$SECURITY_GROUP_ID" == "None" ] || [ -z "$SECURITY_GROUP_ID" ]; then
   echo "Created Security Group with ID: $SECURITY_GROUP_ID"
 
   # Add ingress rules
-  aws ec2 authorize-security-group-ingress \
-    --group-id "$SECURITY_GROUP_ID" \
-    --protocol tcp --port 443 \
-    --cidr 172.0.0.0/8 \
-    --region "$AWS_REGION"
-
-  aws ec2 authorize-security-group-ingress \
-    --group-id "$SECURITY_GROUP_ID" \
-    --protocol tcp --port 8443 \
-    --cidr 172.0.0.0/8 \
-    --region "$AWS_REGION"
-
-  aws ec2 authorize-security-group-ingress \
-    --group-id "$SECURITY_GROUP_ID" \
-    --protocol tcp --port 443 \
-    --cidr 10.0.0.0/8 \
-    --region "$AWS_REGION"
-
-  aws ec2 authorize-security-group-ingress \
-    --group-id "$SECURITY_GROUP_ID" \
-    --protocol tcp --port 8443 \
-    --cidr 10.0.0.0/8 \
-    --region "$AWS_REGION"
+  aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol tcp --port 443 --cidr 172.0.0.0/8 --region "$AWS_REGION"
+  aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol tcp --port 8443 --cidr 172.0.0.0/8 --region "$AWS_REGION"
+  aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol tcp --port 443 --cidr 10.0.0.0/8 --region "$AWS_REGION"
+  aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol tcp --port 8443 --cidr 10.0.0.0/8 --region "$AWS_REGION"
 
   echo "Ingress rules added to Security Group $SECURITY_GROUP_NAME"
 else
@@ -193,21 +173,10 @@ echo "Found Target Group ARN: $TARGET_GROUP_ARN"
 declare -a TARGETS_ARGS=()
 
 for IP in $IP_ADDRESSES; do
-  AZ=$(aws ec2 describe-network-interfaces \
-    --network-interface-ids "$NI_ID" \
-    --region "$AWS_REGION" \
-    --query "NetworkInterfaces[0].AvailabilityZone" \
-    --output text)
+  echo "Found IP $IP"
   
-  if [ -z "$AZ" ] || [ "$AZ" == "None" ]; then
-    echo "Failed to find Availability Zone for IP address $IP"
-    exit 1
-  fi
-
-  echo "Found IP $IP in AZ $AZ"
-  
-  # Build the target argument
-  TARGET_ARG="Id=$IP,Port=443,AvailabilityZone=$AZ"
+  # Build the target argument without the AvailabilityZone (AWS will handle it automatically)
+  TARGET_ARG="Id=$IP,Port=443"
   
   # Append to the targets arguments array
   TARGETS_ARGS+=("$TARGET_ARG")
