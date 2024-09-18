@@ -1,46 +1,30 @@
-- task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
-  displayName: 'Generate kubeconfig'
-  env:
-    externalID: $(externalid)
-  inputs:
-    awsCredentials: ${{ parameters.serviceConnection }}
-    regionName: ap-southeast-2
-    scriptType: inline
-    inlineScript: |
-      #!/bin/bash
-      set -e
-      . scripts/setup.sh "${{parameters.clusterName}}"
 
-      # Generate kubeconfig file using the AWS CLI
-      aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate EKS Token and Retrieve Cluster Info'
+        name: generate
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
+            . scripts/setup.sh "${{parameters.clusterName}}"
+            # Fetch the EKS token
+            token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+            # Fetch the cluster CA certificate
+            # cluster_ca=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.certificateAuthority.data' --output text)
+            # echo "Length of cluster_ca: ${#cluster_ca}"
 
-      # Retrieve the VPC endpoint for the private link
-      VPCE_DOMAIN=$(aws ec2 describe-vpc-endpoints \
-        --filters "Name=service-name,Values=com.amazonaws.ap-southeast-2.eks" \
-        --region ap-southeast-2 \
-        --query "VpcEndpoints[0].DnsEntries[0].DnsName" \
-        --output text)
+            # Fetch the NLB alias
+            nlb_alias=$(aws cloudformation describe-stacks --stack-name "${stackName}" --query 'Stacks[0].Outputs[?OutputKey==`NLBAlias`].OutputValue' --output text)
+            if [[ -z "$nlb_alias" ]]; then
+              echo "No NLBAlias export found for ${stackName}"
+              exit 1
+            fi
+            # Fetch the EKS API endpoint domain (without the https:// prefix)
+            eks_domain=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.endpoint' --output text | sed 's|https://||')
 
-      if [ -z "$VPCE_DOMAIN" ]; then
-          echo "Failed to retrieve VPC endpoint domain. Exiting."
-          exit 1
-      fi
-
-      echo "Using VPC Endpoint Domain: $VPCE_DOMAIN"
-
-      # Update the kubeconfig to use the private VPC endpoint domain
-      yq e ".clusters[].cluster.server = \"https://$VPCE_DOMAIN\"" -i kubeconfig
-
-      # Optionally set insecure-skip-tls-verify to true (commented out for now)
-      # yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
-
-      # Remove "certificate-authority-data" (as it may not be valid for private endpoints)
-      yq e 'del(.clusters[].cluster."certificate-authority-data")' -i kubeconfig
-
-      # Fetch and embed the token into the kubeconfig using yq
-      token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
-      yq e '.users[0].user.token = "'"$token"'"' -i kubeconfig
-
-      # Copy kubeconfig to artifact staging directory
-      mkdir -p $(Build.ArtifactStagingDirectory)
-      cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
+            # echo "##vso[task.setvariable variable=cluster_ca;isOutput=true;issecret=true]$cluster_ca"
+            echo "##vso[task.setvariable variable=nlb_alias;isOutput=true]$nlb_alias"
+            echo "##vso[task.setvariable variable=eks_domain;isOutput=true]$eks_domain"
