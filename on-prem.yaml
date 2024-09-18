@@ -1,4 +1,3 @@
-
     - task: PowerShell@2
       displayName: 'Edit Hosts File with EKS Domain and NLB IP'
       env:
@@ -30,14 +29,19 @@
             $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
             $HostsEntry = "$NLB_IP`t$($env:eks_domain)"
 
-            # Check if entry already exists
+            # Read the existing Hosts file
             $HostsContent = Get-Content -Path $HostsFile -ErrorAction Stop
-            if ($HostsContent -contains $HostsEntry) {
-                Write-Host "Hosts file already contains the required entry."
-            } else {
-                # Add the entry to the hosts file
-                Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
-                Write-Host "Hosts file updated successfully."
-            }
 
-            cat $HostsFile
+            # Remove any existing entries for the eks_domain
+            $HostsContent = $HostsContent | Where-Object { $_ -notmatch "$($env:eks_domain)" }
+
+            # Write back the cleaned content (without old entries)
+            Set-Content -Path $HostsFile -Value $HostsContent -ErrorAction Stop
+
+            # Add the new entry to the hosts file
+            Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
+
+            Write-Host "Hosts file updated successfully."
+
+            # Output the updated Hosts file
+            Get-Content -Path $HostsFile
