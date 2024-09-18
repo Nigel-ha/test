@@ -1,30 +1,39 @@
+- task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+  displayName: 'Generate EKS Token and Retrieve Cluster Info'
+  name: generate
+  env:
+    externalID: $(externalid)
+  inputs:
+    awsCredentials: ${{ parameters.serviceConnection }}
+    regionName: ap-southeast-2
+    scriptType: inline
+    inlineScript: |
+      . scripts/setup.sh "${{parameters.clusterName}}"
+      
+      # Fetch the EKS token
+      token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
+      
+      # Fetch the NLB alias
+      nlb_alias=$(aws cloudformation describe-stacks --stack-name "${stackName}" --query 'Stacks[0].Outputs[?OutputKey==`NLBAlias`].OutputValue' --output text)
+      if [[ -z "$nlb_alias" ]]; then
+        echo "No NLBAlias export found for ${stackName}"
+        exit 1
+      fi
 
-      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
-        displayName: 'Generate EKS Token and Retrieve Cluster Info'
-        name: generate
-        env:
-          externalID: $(externalid)
-        inputs:
-          awsCredentials: ${{ parameters.serviceConnection }}
-          regionName: ap-southeast-2
-          scriptType: inline
-          inlineScript: |
-            . scripts/setup.sh "${{parameters.clusterName}}"
-            # Fetch the EKS token
-            token=$(aws eks get-token --cluster-name "${clusterName}" --query 'status.token' --output text)
-            # Fetch the cluster CA certificate
-            # cluster_ca=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.certificateAuthority.data' --output text)
-            # echo "Length of cluster_ca: ${#cluster_ca}"
+      # Fetch the VPC endpoint domain for the private link
+      eks_domain=$(aws ec2 describe-vpc-endpoints \
+        --filters "Name=service-name,Values=com.amazonaws.ap-southeast-2.eks" \
+        --region ap-southeast-2 \
+        --query "VpcEndpoints[0].DnsEntries[0].DnsName" \
+        --output text)
 
-            # Fetch the NLB alias
-            nlb_alias=$(aws cloudformation describe-stacks --stack-name "${stackName}" --query 'Stacks[0].Outputs[?OutputKey==`NLBAlias`].OutputValue' --output text)
-            if [[ -z "$nlb_alias" ]]; then
-              echo "No NLBAlias export found for ${stackName}"
-              exit 1
-            fi
-            # Fetch the EKS API endpoint domain (without the https:// prefix)
-            eks_domain=$(aws eks describe-cluster --name "${clusterName}" --query 'cluster.endpoint' --output text | sed 's|https://||')
+      if [ -z "$eks_domain" ]; then
+          echo "Failed to retrieve VPC endpoint domain for EKS. Exiting."
+          exit 1
+      fi
 
-            # echo "##vso[task.setvariable variable=cluster_ca;isOutput=true;issecret=true]$cluster_ca"
-            echo "##vso[task.setvariable variable=nlb_alias;isOutput=true]$nlb_alias"
-            echo "##vso[task.setvariable variable=eks_domain;isOutput=true]$eks_domain"
+      echo "Using VPC Endpoint Domain: $eks_domain"
+
+      # Set the variable for use in subsequent tasks
+      echo "##vso[task.setvariable variable=nlb_alias;isOutput=true]$nlb_alias"
+      echo "##vso[task.setvariable variable=eks_domain;isOutput=true]$eks_domain"
