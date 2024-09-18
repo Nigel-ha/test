@@ -1,7 +1,37 @@
-I0918 16:36:28.829728   16888 round_trippers.go:577] Response Headers:
-E0918 16:36:28.830303   16888 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s\": tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com"
-I0918 16:36:28.846735   16888 cached_discovery.go:120] skipped caching discovery info due to Get "https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s": tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
-I0918 16:36:28.846735   16888 helpers.go:264] Connection error: Get https://3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com/api?timeout=32s: tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
-Unable to connect to the server: tls: failed to verify certificate: x509: certificate is valid for *.eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.api.aws, eks.ap-southeast-2.vpce.amazonaws.com, eks.ap-southeast-2.amazonaws.com, not 3BF7A22D48296F689286821433752F11.gr7.ap-southeast-2.eks.amazonaws.com
-##[error]PowerShell exited with code '1'.
-Finishing: Configure kubeconfig
+- task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+  displayName: 'Generate kubeconfig'
+  name: kubeconfig
+  env:
+    externalID: $(externalid)
+  inputs:
+    awsCredentials: ${{ parameters.serviceConnection }}
+    regionName: ap-southeast-2
+    scriptType: inline
+    inlineScript: |
+      #!/bin/bash
+      set -e
+      . scripts/setup.sh "${{parameters.clusterName}}"
+
+      # Generate kubeconfig file
+      aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
+
+      # Replace the public EKS domain suffix with the private link domain suffix
+      # Retaining the unique identifier in the server URL
+      yq e '(.clusters[].cluster.server |= sub("\\.ap-southeast-2\\.eks\\.amazonaws\\.com$", ".eks.ap-southeast-2.vpce.amazonaws.com"))' -i kubeconfig
+
+      # Extract the modified API domain from the kubeconfig file
+      k8s_domain=$(yq e '.clusters[0].cluster.server' kubeconfig | sed 's|https://||')
+
+      # Set the variable 'k8s_domain' for later stages
+      echo "##vso[task.setvariable variable=k8s_domain;isOutput=true]$k8s_domain"
+
+      # Optionally: Comment out insecure-skip-tls-verify (uncomment if needed)
+      # yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
+
+      # Fetch and embed the token using yq
+      token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
+      yq e '.users[0].user.token = "'"$token"'"' -i kubeconfig
+
+      # Copy kubeconfig to artifact staging directory
+      mkdir -p $(Build.ArtifactStagingDirectory)
+      cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
