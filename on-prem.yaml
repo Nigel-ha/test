@@ -17,6 +17,12 @@
       # Using yq to replace the public EKS endpoint with the private link endpoint
       yq e '(.clusters[].cluster.server |= sub("ap-southeast-2.eks.amazonaws.com", "eks.ap-southeast-2.vpce.amazonaws.com"))' -i kubeconfig
 
+      # Extract the new API domain from the kubeconfig file
+      api_domain=$(yq e '.clusters[0].cluster.server' kubeconfig | sed 's|https://||')
+
+      # Set the variable 'api_domain' for later stages
+      echo "##vso[task.setvariable variable=api_domain;isOutput=true]$api_domain"
+
       # Comment out the insecure-skip-tls-verify for now (can be re-enabled if needed)
       # yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
 
