@@ -174,6 +174,21 @@ if [ -z "$IP_ADDRESSES" ]; then
   exit 1
 fi
 
+# Get the Target Group ARN by name
+TARGET_GROUP_NAME="${CLUSTER_NAME}-nlb-tg"
+TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+  --region "$AWS_REGION" \
+  --names "$TARGET_GROUP_NAME" \
+  --query "TargetGroups[0].TargetGroupArn" \
+  --output text)
+
+if [ -z "$TARGET_GROUP_ARN" ]; then
+  echo "Failed to find Target Group ARN for $TARGET_GROUP_NAME"
+  exit 1
+fi
+
+echo "Found Target Group ARN: $TARGET_GROUP_ARN"
+
 # Build the list of targets to register
 declare -a TARGETS_ARGS=()
 
