@@ -1,35 +1,36 @@
-- task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
-  displayName: 'Generate kubeconfig'
-  env:
-    externalID: $(externalid)
-  inputs:
-    awsCredentials: ${{ parameters.serviceConnection }}
-    regionName: ap-southeast-2
-    scriptType: inline
-    inlineScript: |
-      #!/bin/bash
-      set -e
-      . scripts/setup.sh "${{parameters.clusterName}}"
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate kubeconfig'
+        name: kubeconfig
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
+            #!/bin/bash
+            set -e
+            . scripts/setup.sh "${{parameters.clusterName}}"
 
-      # Generate kubeconfig file
-      aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
+            # Generate kubeconfig file
+            aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
 
-      # Using yq to replace the public EKS endpoint with the private link endpoint
-      yq e '(.clusters[].cluster.server |= sub("ap-southeast-2.eks.amazonaws.com", "eks.ap-southeast-2.vpce.amazonaws.com"))' -i kubeconfig
+            # Using yq to replace the public EKS endpoint with the private link endpoint
+            yq e '(.clusters[].cluster.server |= sub("ap-southeast-2.eks.amazonaws.com", "eks.ap-southeast-2.vpce.amazonaws.com"))' -i kubeconfig
 
-      # Extract the new API domain from the kubeconfig file
-      api_domain=$(yq e '.clusters[0].cluster.server' kubeconfig | sed 's|https://||')
+            # Extract the new API domain from the kubeconfig file
+            k8s_domain=$(yq e '.clusters[0].cluster.server' kubeconfig | sed 's|https://||')
 
-      # Set the variable 'api_domain' for later stages
-      echo "##vso[task.setvariable variable=api_domain;isOutput=true]$api_domain"
+            # Set the variable 'k8s_domain' for later stages
+            echo "##vso[task.setvariable variable=k8s_domain;isOutput=true]$k8s_domain"
 
-      # Comment out the insecure-skip-tls-verify for now (can be re-enabled if needed)
-      # yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
+            # Comment out the insecure-skip-tls-verify for now (can be re-enabled if needed)
+            # yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
 
-      # Fetch and embed the token using yq
-      token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
-      yq e '.users[0].user.token = "'"$token"'"' -i kubeconfig
+            # Fetch and embed the token using yq
+            token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
+            yq e '.users[0].user.token = "'"$token"'"' -i kubeconfig
 
-      # Copy kubeconfig to artifact staging directory
-      mkdir -p $(Build.ArtifactStagingDirectory)
-      cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
+            # Copy kubeconfig to artifact staging directory
+            mkdir -p $(Build.ArtifactStagingDirectory)
+            cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
