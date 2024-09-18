@@ -1,47 +1,30 @@
-    - task: PowerShell@2
-      displayName: 'Edit Hosts File with EKS Domain and NLB IP'
-      env:
-        nlb_alias: $(nlb_alias)
-        eks_domain: $(eks_domain)
-      inputs:
-        targetType: 'inline'
-        script: |
-            # Set environment variables
-            $env:nlb_alias = '$(nlb_alias)'
-            $env:eks_domain = '$(eks_domain)'
 
-            try {
-                $NLB_IP = [System.Net.Dns]::GetHostAddresses($env:nlb_alias) | Select-Object -First 1 | ForEach-Object { $_.IPAddressToString }
-            } catch {
-                Write-Error "Failed to resolve NLB alias to IP address."
-                exit 1
-            }
+      - task: AmazonWebServices.aws-vsts-tools.AWSShellScript.AWSShellScript@1
+        displayName: 'Generate kubeconfig'
+        env:
+          externalID: $(externalid)
+        inputs:
+          awsCredentials: ${{ parameters.serviceConnection }}
+          regionName: ap-southeast-2
+          scriptType: inline
+          inlineScript: |
+            #!/bin/bash
+            set -e
+            . scripts/setup.sh "${{parameters.clusterName}}"
 
-            if (-not $NLB_IP) {
-                Write-Error "Failed to get IP address for NLB alias."
-                exit 1
-            }
+            # Generate kubeconfig file
+            aws eks update-kubeconfig --name "${clusterName}" --region ap-southeast-2 --kubeconfig kubeconfig
 
-            Write-Host "NLB IP Address: $NLB_IP"
-            Write-Host "EKS Domain: $($env:eks_domain)"
+            # Using yq to set "insecure-skip-tls-verify" to true
+            yq e '.clusters[].cluster."insecure-skip-tls-verify" = true' -i kubeconfig
 
-            # Update the Windows Hosts File
-            $HostsFile = "C:\Windows\System32\drivers\etc\hosts"
-            $HostsEntry = "$NLB_IP`t$($env:eks_domain)"
+            # Remove "certificate-authority-data" field using yq
+            yq e 'del(.clusters[].cluster."certificate-authority-data")' -i kubeconfig
 
-            # Read the existing Hosts file
-            $HostsContent = Get-Content -Path $HostsFile -ErrorAction Stop
+            # Fetch and embed the token using yq
+            token=$(aws eks get-token --cluster-name "${clusterName}" --region ap-southeast-2 --query 'status.token' --output text)
+            yq e '.users[0].user.token = "'"$token"'"' -i kubeconfig
 
-            # Remove any existing entries for the eks_domain
-            $HostsContent = $HostsContent | Where-Object { $_ -notmatch "$($env:eks_domain)" }
-
-            # Write back the cleaned content (without old entries)
-            Set-Content -Path $HostsFile -Value $HostsContent -ErrorAction Stop
-
-            # Add the new entry to the hosts file
-            Add-Content -Path $HostsFile -Value $HostsEntry -ErrorAction Stop
-
-            Write-Host "Hosts file updated successfully."
-
-            # Output the updated Hosts file
-            Get-Content -Path $HostsFile
+            # Copy kubeconfig to artifact staging directory
+            mkdir -p $(Build.ArtifactStagingDirectory)
+            cp kubeconfig $(Build.ArtifactStagingDirectory)/kubeconfig
