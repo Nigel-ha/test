@@ -66,6 +66,8 @@ Resources:
           Value: CET
         - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
           Value: shared
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
 
   Subnet2:
     Type: AWS::EC2::Subnet
@@ -85,6 +87,8 @@ Resources:
           Value: CET
         - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
           Value: shared
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
 
   Subnet3:
     Type: AWS::EC2::Subnet
@@ -104,6 +108,8 @@ Resources:
           Value: CET
         - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
           Value: shared
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1          
 
   RouteTable1:
     Type: AWS::EC2::RouteTable
@@ -539,7 +545,7 @@ Resources:
         ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2/recommended/image_id}}"
         InstanceType: t3.medium
         # KeyName: sce-cmk
-        MetadataOptions:
+        MetadataOptions: 
           HttpTokens: required     # Enforces IMDSv2
           HttpPutResponseHopLimit: 1
         BlockDeviceMappings:
