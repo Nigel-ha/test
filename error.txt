@@ -1,3 +1,1 @@
-Using subnets: subnet-0ace408ec454b061a subnet-06d551067b9545d46        subnet-0cb6024d635ef3d8b
-Creating VPC Interface Endpoint for com.amazonaws.ap-southeast-2.ec2
-An error occurred (InvalidSubnetId.Malformed) when calling the CreateVpcEndpoint operation: Invalid Subnet Id: 'subnet-0ace408ec454b061a        subnet-06d551067b9545d46        subnet-0cb6024d635ef3d8b' (expecting 'subnet-...; the Id may only contain lowercase alphanumeric characters and a single dash')
+Resource handler returned message: "Cross-account pass role is not allowed. (
