@@ -91,7 +91,7 @@ GATEWAY_SERVICES=(
 
 # Get the list of subnets in the VPC for interface endpoints
 SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
-  --query "Subnets[*].SubnetId" --output text --region "$REGION")
+  --query "Subnets[*].SubnetId" --output text --region "$REGION" | tr '\t' ',')
 
 if [[ -z "$SUBNET_IDS" ]]; then
   echo "No subnets found for VPC: $VPC_ID"
