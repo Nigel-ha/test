@@ -187,6 +187,8 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
         - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       PermissionsBoundary: !ImportValue SCE:SERVICE-BOUNDARY-V3
       Tags:
         - Key: StackId
@@ -527,39 +529,72 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # Enables SSM access
       Tags:
         - Key: Name
           Value: !Sub "${ClusterName}-node-role"
 
-  # Instance Profile for Worker Nodes
-  NodeInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
+  NodeGroup:
+    Type: AWS::EKS::Nodegroup
     Properties:
-      Roles:
-        - !Ref NodeInstanceRole
+      ClusterName: !Ref EKSCluster
+      NodeRole: !Ref NodeInstanceRole
+      Subnets:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 2
+        MaxSize: 4
+      AmiType: AL2_x86_64  # Amazon Linux 2
+      InstanceTypes:
+        - t3.medium
+      DiskSize: 20  # In GB
+      Labels:
+        environment: production
+      # Tags:
+      #   - Key: Name
+      #     Value: !Sub "${ClusterName}-worker-node"
+      #   - Key: StackId
+      #     Value: !Ref AWS::StackId
+      #   - Key: StackName
+      #     Value: !Ref AWS::StackName
+      #   - Key: SCE:owner
+      #     Value: CET
 
-  NodeGroupLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateData:
-        ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2/recommended/image_id}}"
-        InstanceType: t3.medium
-        # KeyName: sce-cmk
-        MetadataOptions: 
-          HttpTokens: required     # Enforces IMDSv2
-          HttpPutResponseHopLimit: 1
-        BlockDeviceMappings:
-          - DeviceName: "/dev/xvda"
-            Ebs:
-              Encrypted: true
-              # KmsKeyId: !Ref NodeKmsKey  # Attach KMS key to encrypt the EBS volume
-              VolumeSize: 20  # Size of EBS volume in GiB
-              VolumeType: gp3  # You can use gp3, gp2, io1, etc.
-        # Add any other configuration for your ASG like KeyName, SecurityGroupIds, etc.
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            /etc/eks/bootstrap.sh ${ClusterName}
+
+  # Instance Profile for Worker Nodes
+  # NodeInstanceProfile:
+  #   Type: AWS::IAM::InstanceProfile
+  #   Properties:
+  #     Roles:
+  #       - !Ref NodeInstanceRole
+
+  # NodeGroupLaunchTemplate:
+  #   Type: AWS::EC2::LaunchTemplate
+  #   Properties:
+  #     LaunchTemplateData:
+  #       ImageId: !Sub "{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2/recommended/image_id}}"
+  #       InstanceType: t3.medium
+  #       IamInstanceProfile:
+  #         Arn: !GetAtt NodeInstanceProfile.Arn
+  #       # KeyName: sce-cmk
+  #       MetadataOptions: 
+  #         HttpTokens: required     # Enforces IMDSv2
+  #         HttpPutResponseHopLimit: 1
+  #       BlockDeviceMappings:
+  #         - DeviceName: "/dev/xvda"
+  #           Ebs:
+  #             Encrypted: true
+  #             # KmsKeyId: !Ref NodeKmsKey  # Attach KMS key to encrypt the EBS volume
+  #             VolumeSize: 20  # Size of EBS volume in GiB
+  #             VolumeType: gp3  # You can use gp3, gp2, io1, etc.
+  #       # Add any other configuration for your ASG like KeyName, SecurityGroupIds, etc.
+  #       UserData:
+  #         Fn::Base64: !Sub |
+  #           #!/bin/bash
+  #           /etc/eks/bootstrap.sh ${ClusterName}
 
   # KMS Key for EC2 EBS Volume Encryption
   # NodeKmsKey:
@@ -637,29 +672,29 @@ Resources:
   #     TargetKeyId: !Ref NodeKmsKey
 
   # Auto Scaling Group for Worker Nodes
-  NodeGroupASG:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      VPCZoneIdentifier:  # Specify the subnets created in your template
-        - !Ref Subnet1
-        - !Ref Subnet2
-        - !Ref Subnet3
-      LaunchTemplate:
-        LaunchTemplateId: !Ref NodeGroupLaunchTemplate
-        Version: !GetAtt NodeGroupLaunchTemplate.LatestVersionNumber
-      MinSize: 0
-      MaxSize: 4
-      DesiredCapacity: 0
-      Tags:
-        - Key: Name
-          Value: !Sub "${ClusterName}-worker-node"
-          PropagateAtLaunch: true
-        - Key: StackId
-          Value: !Ref AWS::StackId
-          PropagateAtLaunch: true
-        - Key: StackName
-          Value: !Ref AWS::StackName
-          PropagateAtLaunch: true
+  # NodeGroupASG:
+  #   Type: AWS::AutoScaling::AutoScalingGroup
+  #   Properties:
+  #     VPCZoneIdentifier:  # Specify the subnets created in your template
+  #       - !Ref Subnet1
+  #       - !Ref Subnet2
+  #       - !Ref Subnet3
+  #     LaunchTemplate:
+  #       LaunchTemplateId: !Ref NodeGroupLaunchTemplate
+  #       Version: !GetAtt NodeGroupLaunchTemplate.LatestVersionNumber
+  #     MinSize: 0
+  #     MaxSize: 4
+  #     DesiredCapacity: 0
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${ClusterName}-worker-node"
+  #         PropagateAtLaunch: true
+  #       - Key: StackId
+  #         Value: !Ref AWS::StackId
+  #         PropagateAtLaunch: true
+  #       - Key: StackName
+  #         Value: !Ref AWS::StackName
+  #         PropagateAtLaunch: true
 
 Outputs:
   ClusterName:
